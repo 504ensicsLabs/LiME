@@ -13,8 +13,9 @@ A Loadable Kernel Module (LKM) which allows for volatile memory acquisition from
 * Minimal process footprint
 
 ## Usage <a name="usage"/>
-LiME utilizes the insmod command to load the module, passing required arguments for its execution.
+Detailed documentation on LiME's usage and internals can be found in the "doc" directory of the project.
 
+LiME utilizes the insmod command to load the module, passing required arguments for its execution.
 ```
 insmod ./lime.ko "path=<outfile | tcp:<port>> format=<raw|padded|lime> [dio=<0|1>]"
 
