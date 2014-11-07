@@ -19,15 +19,15 @@ LiME utilizes the insmod command to load the module, passing required arguments 
 ```
 insmod ./lime.ko "path=<outfile | tcp:<port>> format=<raw|padded|lime> [dio=<0|1>]"
 
-path:   outfile ~ name of file to write to on local system (SD Card)
+path (required):   outfile ~ name of file to write to on local system (SD Card)
         tcp:port ~ network port to communicate over
         
-format: raw ~ concatenates all System RAM ranges
+format (required): raw ~ concatenates all System RAM ranges
         padded ~ pads all non-System RAM ranges with 0s
         lime ~ each range prepended with fixed-size header containing address space info
         
-dio:    1 ~ default, attempt to enable Direct IO
-        0 ~ do not attempt Direct IO
+dio (optional):    1 ~ attempt to enable Direct IO
+        0 ~ default, do not attempt Direct IO
 ```
 
 ## Examples <a name="example"/>
