@@ -13,6 +13,7 @@
 ##Compiling LiME <a name="Compile"/>
 ###Linux <a name="Linux"/>
 LiME is a Loadable Kernel Module (LKM).  LiME ships with a default Makefile that should be suitable for compilation on most modern Linux systems.
+
 For detailed instructions on using LKM see https://www.kernel.org/doc/Documentation/kbuild/modules.txt.
 
 ###Debug  <a name="Debug"/>
@@ -78,6 +79,7 @@ To illustrate the use of LiME, we will now walk through two examples of acquirin
 
 ###Parameters <a name="Params"/>
 Starting in version 1.1, LiME now supports multiple output formats, including a custom lime format which integrates with Volatility’s new lime address space.  This means that additional parameters are needed when installing the LiME kernel module.
+
 NOTE: There is a bug in the insmod utility on some Android devices.  Multiple kernel module parameters must be wrapped in quotation marks, otherwise only the first parameter will be parsed.  See sections 4.2 and 4.3 for examples.
 ```
 path    Either a filename to write on the local system (SD Card) or tcp:<port>
@@ -97,12 +99,14 @@ su
 #
 ```
 
-Memory acquisition over the TCP tunnel is then a two-part process.  First, the target device must listen on a specified TCP port and then we must connect to the device from the host computer.  When the socket is connected, the kernel module will automatically send the acquired RAM image to the host device. 
-In the adb root shell, we install our kernel module using the insmod command.  To instruct the module to dump memory via TCP, we set the path parameter to “tcp”, followed by a colon and then the port number that adb is forwarding.  On our host computer, we connect to this port with netcat and redirect output to a file.  We also select the “lime” formatting option.  When the acquisition process is complete, LiME will terminate the TCP connection.
+Memory acquisition over the TCP tunnel is then a two-part process.  First, the target device must listen on a specified TCP port and then we must connect to the device from the host computer.  When the socket is connected, the kernel module will automatically send the acquired RAM image to the host device.
+
+In the adb root shell, we install our kernel module using the insmod command.  To instruct the module to dump memory via TCP, we set the path parameter to “tcp”, followed by a colon and then the port number that adb is forwarding.  On our host computer, we connect to this port with netcat and redirect output to a file.  We also select the “lime” formatting option.  When the acquisition process is complete, LiME will terminate the TCP connection.  
 The following command loads the kernel module via adb on the target Android device:
 ```
 insmod /sdcard/lime.ko “path=tcp:4444 format=lime”
 ```
+
 On the host, the following command captures the memory dump via TCP port 444 to the file “ram.lime”:
 ```
 nc localhost 4444 > ram.lime
@@ -110,8 +114,11 @@ nc localhost 4444 > ram.lime
 
 ###Acquisition of Memory to Disk (SD-Card) <a name="Disk"/>
 In some cases, such as when the investigator wants to make sure no network buffers are overwritten, disk-based acquisition may be preferred to network acquisition.  To accommodate this situation, LiME provides the option to write memory images to the device’s file system.  On Android, the logical place to write is the device’s SD card.
+
 Since the SD card could potentially contain other relevant evidence to the case, the investigator may wish to image the SD card first in order to save unallocated space.  Unfortunately, some Android phones, such as the HTC EVO 4G and the Droid series, place the removable SD card to be either under or obstructed by the phone’s battery, making it impossible to remove the SD card without powering off the phone (these phones will power down if the battery is removed, even if they are plugged into a power source!).  For this reason, the investigator needs to first image the SD card, and then subsequently write the memory image to it. While this process violates the typical “order of volatility” rule of thumb in forensic acquisition, namely, obtaining the most volatile information first, it is necessary to properly preserve all evidence.
+
 Fortunately, imaging the SD card on an Android device that will be subjected to live forensic analysis (including memory dumping) does not require removal of the SD card.  Tethering the device to a Linux machine, for example, and activating USB Storage exposes a /dev/sd? device that can be imaged using traditional means (e.g., using dd on the Linux box). Activating USB Storage mode unmounts the SD card on the Android device, so a forensically valid image can be obtained.
+
 With USB Storage mode deactivated, we copy the LiME kernel module to the device using the same steps described in the last section.  When installing the module using insmod, we set the path parameter to /sdcard/ram.lime to specify the file in which to write the memory dump.  We also select the “lime” format option:
 ```
 insmod /sdcard/lime.ko “path=/sdcard/ram.lime format=lime”
