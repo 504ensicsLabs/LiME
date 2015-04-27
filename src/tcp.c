@@ -130,7 +130,7 @@ int write_vaddr_tcp(void * v, size_t is) {
 	long s;
 
 	struct iovec iov;
-	struct msghdr msg  = { .msg_iov = &iov, .msg_iovlen = 1 };
+	struct user_msghdr msg  = { .msg_iov = &iov, .msg_iovlen = 1 };
 
 	fs = get_fs();
 	set_fs(KERNEL_DS);
