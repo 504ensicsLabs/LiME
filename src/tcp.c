@@ -130,7 +130,11 @@ int write_vaddr_tcp(void * v, size_t is) {
 	long s;
 
 	struct iovec iov;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
 	struct msghdr msg  = { .msg_iov = &iov, .msg_iovlen = 1 };
+#else
+	struct user_msghdr msg  = { .msg_iov = &iov, .msg_iovlen = 1 };
+#endif
 
 	fs = get_fs();
 	set_fs(KERNEL_DS);
