@@ -34,7 +34,7 @@
 
 #include "lime.h"
 
-int write_vaddr_tcp(void *, size_t);
+ssize_t write_vaddr_tcp(void *, size_t);
 int setup_tcp(void);
 void cleanup_tcp(void);
 
@@ -124,27 +124,18 @@ void cleanup_tcp() {
 	}
 }
 
-int write_vaddr_tcp(void * v, size_t is) {
-	mm_segment_t fs;
+ssize_t write_vaddr_tcp(void * v, size_t is) {
+	ssize_t s;
+	struct kvec iov;
+	struct msghdr msg;
 
-	long s;
-
-	struct iovec iov;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
-	struct msghdr msg  = { .msg_iov = &iov, .msg_iovlen = 1 };
-#else
-	struct user_msghdr msg  = { .msg_iov = &iov, .msg_iovlen = 1 };
-#endif
-
-	fs = get_fs();
-	set_fs(KERNEL_DS);
+	memset(&iov, 0, sizeof(struct iovec));
+	memset(&msg, 0, sizeof(struct msghdr));
 
 	iov.iov_base = v;	
 	iov.iov_len = is;
     
-	s = sock_sendmsg(accept, &msg, is);
-
-	set_fs(fs);
+	s = kernel_sendmsg(accept, &msg, &iov, 1, is);
 
 	return s;
 }

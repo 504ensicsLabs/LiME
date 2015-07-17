@@ -25,9 +25,9 @@
 
 // This file
 static int write_lime_header(struct resource *);
-static int write_padding(size_t);
-static int write_range(struct resource *);
-static int write_vaddr(void *, size_t);
+static ssize_t write_padding(size_t);
+static void write_range(struct resource *);
+static ssize_t write_vaddr(void *, size_t);
 static int setup(void);
 static void cleanup(void);
 static int init(void);
@@ -116,10 +116,7 @@ static int init() {
 			break;
 		}
 
-		if ((err = write_range(p))) {
-			DBG("Error writing range 0x%lx - 0x%lx", (long) p->start, (long) p->end);
-			break;
-		}
+		write_range(p);
 
 		p_last = p->end;
 	}
@@ -131,7 +128,7 @@ static int init() {
 }
 
 static int write_lime_header(struct resource * res) {
-	long s;
+	ssize_t s;
 
 	lime_mem_range_header header;
 
@@ -151,9 +148,9 @@ static int write_lime_header(struct resource * res) {
 	return 0;
 }
 
-static int write_padding(size_t s) {
+static ssize_t write_padding(size_t s) {
 	size_t i = 0;
-	int r;
+	ssize_t r;
 
 	while(s -= i) {
 
@@ -161,7 +158,7 @@ static int write_padding(size_t s) {
 		r = write_vaddr(zero_page, i);
 
 		if (r != i) {
-			DBG("Error sending zero page: %d", r);
+			DBG("Error sending zero page: %zd", r);
 			return r;
 		}
 	}
@@ -169,7 +166,7 @@ static int write_padding(size_t s) {
 	return 0;
 }
 
-static int write_range(struct resource * res) {
+static void write_range(struct resource * res) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
 	resource_size_t i, is;
 #else
@@ -178,7 +175,7 @@ static int write_range(struct resource * res) {
 	struct page * p;
 	void * v;
 	
-	int s;
+	ssize_t s;
 
 	for (i = res->start; i <= res->end; i += is) {
 
@@ -189,24 +186,25 @@ static int write_range(struct resource * res) {
         if (is < PAGE_SIZE) {
         	// We can't map partial pages and 
         	// the linux kernel doesn't use them anyway
-        	DBG("Padding partial page: vaddr %p size: %lu", (void *) i, is);
+        	DBG("Padding partial page: vaddr %p size: %lu", (void *) i, (unsigned long) is);
         	write_padding(is);
         } else {
 			v = kmap(p);
 			s = write_vaddr(v, is);
 			kunmap(p);
 
-			if (s != is) {
-				DBG("Error writing page: vaddr %p ret: %d", v, s);
-				return (int) s;
+			if (s < 0) {
+				DBG("Error writing page: vaddr %p ret: %zd.  Null padding.", v, s);
+				write_padding(is);
+			} else if (s != is) {
+				DBG("Short Read %zu instead of %lu.  Null padding.", s, (unsigned long) is);
+				write_padding(is - s);
 			}
 		}
 	}
-
-	return 0;
 }
 
-static int write_vaddr(void * v, size_t is) {
+static ssize_t write_vaddr(void * v, size_t is) {
 	return (method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is);
 }
 
