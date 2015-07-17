@@ -39,6 +39,7 @@ int setup_tcp(void);
 void cleanup_tcp(void);
 
 extern int port;
+extern int localhostonly;
 
 static struct socket *control;
 static struct socket *accept;
@@ -66,7 +67,12 @@ int setup_tcp() {
 	
 	saddr.sin_family = AF_INET;
    	saddr.sin_port = htons(port);
-	saddr.sin_addr.s_addr = INADDR_ANY;
+   	if (localhostonly) {
+   		saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+   	} else {
+		saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+   	}
+	
 
 	fs = get_fs();
 	set_fs(KERNEL_DS);

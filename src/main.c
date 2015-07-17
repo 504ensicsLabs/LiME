@@ -49,12 +49,14 @@ static char zero_page[PAGE_SIZE];
 char * path = 0;
 int dio = 0;
 int port = 0;
+int localhostonly = 0;
 
 extern struct resource iomem_resource;
 
 module_param(path, charp, S_IRUGO);
 module_param(dio, int, S_IRUGO);
 module_param(format, charp, S_IRUGO);
+module_param(localhostonly, int, S_IRUGO);
 
 int init_module (void)
 {
@@ -72,6 +74,7 @@ int init_module (void)
 	DBG("  PATH: %s", path);
 	DBG("  DIO: %u", dio);
 	DBG("  FORMAT: %s", format);
+	DBG("  LOCALHOSTONLY: %u", localhostonly);
 
 	memset(zero_page, 0, sizeof(zero_page));
 

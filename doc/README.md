@@ -82,11 +82,12 @@ Starting in version 1.1, LiME now supports multiple output formats, including a 
 
 NOTE: There is a bug in the insmod utility on some Android devices.  Multiple kernel module parameters must be wrapped in quotation marks, otherwise only the first parameter will be parsed.  See sections 4.2 and 4.3 for examples.
 ```
-path    Either a filename to write on the local system (SD Card) or tcp:<port>
-format  raw: Simply concatenates all System RAM ranges
-        padded: Pads all non-System RAM ranges with 0s, starting from physical address 0
-        lime: Each range is prepended with a fixed-sized header which contains address space information. Volatility address space developed to support this format
-dio     Optional. 1 to enable Direct IO attempt, 0 to disable (default)
+path          Either a filename to write on the local system (SD Card) or tcp:<port>
+format        raw: Simply concatenates all System RAM ranges
+              padded: Pads all non-System RAM ranges with 0s, starting from physical address 0
+              lime: Each range is prepended with a fixed-sized header which contains address space information. Volatility address space developed to support this format
+dio           Optional. 1 to enable Direct IO attempt, 0 to disable (default)
+localhostonly Optional. 1 restricts the tcp to only listen on localhost, 0 binds on all interfaces (default)
 ```
 
 ###Acquisition of Memory over TCP <a name="TCP"/>
