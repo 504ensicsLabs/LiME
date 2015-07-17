@@ -24,7 +24,7 @@
 #include "lime.h"
 
 
-int write_vaddr_disk(void *, size_t);
+ssize_t write_vaddr_disk(void *, size_t);
 int setup_disk(void);
 void cleanup_disk(void);
 
@@ -84,10 +84,10 @@ void cleanup_disk() {
 	set_fs(fs);
 }
 
-int write_vaddr_disk(void * v, size_t is) {
+ssize_t write_vaddr_disk(void * v, size_t is) {
 	mm_segment_t fs;
 
-	long s;
+	ssize_t s;
 	loff_t pos;
 
 	fs = get_fs();
