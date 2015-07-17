@@ -28,6 +28,8 @@ format (required): raw ~ concatenates all System RAM ranges
         
 dio (optional):    1 ~ attempt to enable Direct IO
         0 ~ default, do not attempt Direct IO
+        
+localhostonly (optional):  1 restricts the tcp to only listen on localhost, 0 binds on all interfaces (default)
 ```
 
 ## Examples <a name="example"/>
