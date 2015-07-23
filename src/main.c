@@ -144,7 +144,7 @@ static int write_lime_header(struct resource * res) {
 	s = write_vaddr(&header, sizeof(lime_mem_range_header));
 	
 	if (s != sizeof(lime_mem_range_header)) {
-		DBG("Error sending header %ld", s);
+		DBG("Error sending header %zd", s);
 		return (int) s;
 	}				
 
