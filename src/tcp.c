@@ -52,7 +52,9 @@ int setup_tcp() {
 
 	int buffsize = PAGE_SIZE;
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,5)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0)
+	r = sock_create_kern(&init_net, AF_INET, SOCK_STREAM, IPPROTO_TCP, &control);
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,5)
 	r = sock_create_kern(AF_INET, SOCK_STREAM, IPPROTO_TCP, &control);
 #else
 	r = sock_create(AF_INET, SOCK_STREAM, IPPROTO_TCP, &control);
@@ -97,8 +99,10 @@ int setup_tcp() {
 		DBG("Error listening on socket");
 		return r;
 	}
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,5)
+	
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0)
+	r = sock_create_kern(&init_net, PF_INET, SOCK_STREAM, IPPROTO_TCP, &accept);
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,5)
 	r = sock_create_kern(PF_INET, SOCK_STREAM, IPPROTO_TCP, &accept);
 #else
 	r = sock_create(PF_INET, SOCK_STREAM, IPPROTO_TCP, &accept);
