@@ -30,21 +30,21 @@ PWD := $(shell pwd)
 .PHONY: modules modules_install clean distclen help
 
 default:
-	$(MAKE) -C /lib/modules/$(KVER)/build M=$(PWD) modules
+	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" modules
 	strip --strip-unneeded lime.ko
 	mv lime.ko lime-$(KVER).ko
 
 debug:
-	KCFLAGS="-DLIME_DEBUG" $(MAKE) -C /lib/modules/$(KVER)/build M=$(PWD) modules 
+	KCFLAGS="-DLIME_DEBUG" $(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" modules 
 	strip --strip-unneeded lime.ko
 	mv lime.ko lime-$(KVER).ko
 
 modules:	main.c disk.c tcp.c lime.h
-	$(MAKE) -C /lib/modules/$(KVER)/build M=$(PWD) $@
+	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" $@
 	strip --strip-unneeded lime.ko
 
 modules_install:	modules
-	$(MAKE) -C /lib/modules/$(KVER)/build M=$(PWD) $@
+	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" $@
 
 clean:
 	rm -f *.o *.mod.c Module.symvers Module.markers modules.order \.*.o.cmd \.*.ko.cmd \.*.o.d
