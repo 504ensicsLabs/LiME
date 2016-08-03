@@ -105,7 +105,7 @@ static int init() {
 	__PTRDIFF_TYPE__ p_last = -1;
 #endif
 
-	DBG("Initilizing Dump...");
+	DBG("Initializing Dump...");
 
 	if((err = setup())) {
 		DBG("Setup Error");
@@ -130,6 +130,7 @@ static int init() {
 		p_last = p->end;
 	}
 
+	DBG("Memory Dump Complete...");
 
 	cleanup();
 
@@ -185,6 +186,8 @@ static void write_range(struct resource * res) {
 	void * v;
 
 	ssize_t s;
+
+	DBG("Writing range %llx - %llx.", res->start, res->end);
 
 	for (i = res->start; i <= res->end; i += is) {
 
