@@ -50,6 +50,7 @@ char * path = 0;
 int dio = 0;
 int port = 0;
 int localhostonly = 0;
+long timeout = 500;
 
 extern struct resource iomem_resource;
 
@@ -57,6 +58,7 @@ module_param(path, charp, S_IRUGO);
 module_param(dio, int, S_IRUGO);
 module_param(format, charp, S_IRUGO);
 module_param(localhostonly, int, S_IRUGO);
+module_param(timeout, long, S_IRUGO);
 
 #define RETRY_IF_INTURRUPTED(f) ({ \
 	ssize_t err; \
@@ -186,10 +188,12 @@ static void write_range(struct resource * res) {
 	void * v;
 
 	ssize_t s;
+	ktime_t start,end;
 
 	DBG("Writing range %llx - %llx.", res->start, res->end);
 
 	for (i = res->start; i <= res->end; i += is) {
+		start = ktime_get();
 
 		p = pfn_to_page((i) >> PAGE_SHIFT);
 
@@ -212,6 +216,14 @@ static void write_range(struct resource * res) {
 				DBG("Short Read %zu instead of %lu.  Null padding.", s, (unsigned long) is);
 				write_padding(is - s);
 			}
+		}
+
+		end = ktime_get();
+
+		if (timeout > 0 && ktime_to_ms(ktime_sub(end, start)) > timeout) {
+			DBG("Reading is too slow.  Skipping Range...");
+			write_padding(res->end - i - is);
+			break;
 		}
 	}
 }
