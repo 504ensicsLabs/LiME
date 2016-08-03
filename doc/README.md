@@ -52,7 +52,7 @@ cp config $KSRC_PATH/.config
 
 Next we have to prepare our kernel source for our module.
 ```
-$ cd $KSRC_PATH 
+$ cd $KSRC_PATH
 $ make ARCH=arm CROSS_COMPILE=$CC_PATH/arm-eabi- modules_prepare
 ```
 
@@ -88,6 +88,9 @@ format        raw: Simply concatenates all System RAM ranges
               lime: Each range is prepended with a fixed-sized header which contains address space information. Volatility address space developed to support this format
 dio           Optional. 1 to enable Direct IO attempt, 0 to disable (default)
 localhostonly Optional. 1 restricts the tcp to only listen on localhost, 0 binds on all interfaces (default)
+timeout       Optional. If it takes longer than the specified  timeout (in milliseconds) to read/write a page
+              of memory then the range is assumed to be bad and is skipped.  To disable this set timeout to 0.
+              The default setting is 500ms.
 ```
 
 ###Acquisition of Memory over TCP <a name="TCP"/>
@@ -102,7 +105,7 @@ su
 
 Memory acquisition over the TCP tunnel is then a two-part process.  First, the target device must listen on a specified TCP port and then we must connect to the device from the host computer.  When the socket is connected, the kernel module will automatically send the acquired RAM image to the host device.
 
-In the adb root shell, we install our kernel module using the insmod command.  To instruct the module to dump memory via TCP, we set the path parameter to “tcp”, followed by a colon and then the port number that adb is forwarding.  On our host computer, we connect to this port with netcat and redirect output to a file.  We also select the “lime” formatting option.  When the acquisition process is complete, LiME will terminate the TCP connection.  
+In the adb root shell, we install our kernel module using the insmod command.  To instruct the module to dump memory via TCP, we set the path parameter to “tcp”, followed by a colon and then the port number that adb is forwarding.  On our host computer, we connect to this port with netcat and redirect output to a file.  We also select the “lime” formatting option.  When the acquisition process is complete, LiME will terminate the TCP connection.
 The following command loads the kernel module via adb on the target Android device:
 ```
 insmod /sdcard/lime.ko “path=tcp:4444 format=lime”
@@ -131,7 +134,7 @@ Once the acquisition process is complete, we can power down the phone, remove th
 ```
 typedef struct {
 	unsigned int magic;		// Always 0x4C694D45 (LiME)
-	unsigned int version;		// Header version number 
+	unsigned int version;		// Header version number
 	unsigned long long s_addr;	// Starting address of physical RAM range
 	unsigned long long e_addr;	// Ending address of physical RAM range
 	unsigned char reserved[8];	// Currently all zeros
