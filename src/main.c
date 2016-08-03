@@ -14,11 +14,11 @@
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details. 
+ * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA 
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include "lime.h"
@@ -58,6 +58,12 @@ module_param(dio, int, S_IRUGO);
 module_param(format, charp, S_IRUGO);
 module_param(localhostonly, int, S_IRUGO);
 
+#define RETRY_IF_INTURRUPTED(f) ({ \
+	ssize_t err; \
+	do { err = f; } while(err == EAGAIN || err == EINTR); \
+	err; \
+})
+
 int init_module (void)
 {
 	if(!path) {
@@ -69,7 +75,7 @@ int init_module (void)
 		DBG("No format parameter specified");
 		return -EINVAL;
 	}
-	
+
 	DBG("Parameters");
 	DBG("  PATH: %s", path);
 	DBG("  DIO: %u", dio);
@@ -123,7 +129,7 @@ static int init() {
 
 		p_last = p->end;
 	}
-	
+
 
 	cleanup();
 
@@ -140,13 +146,13 @@ static int write_lime_header(struct resource * res) {
 	header.version = 1;
 	header.s_addr = res->start;
 	header.e_addr = res->end;
-	
+
 	s = write_vaddr(&header, sizeof(lime_mem_range_header));
-	
+
 	if (s != sizeof(lime_mem_range_header)) {
 		DBG("Error sending header %zd", s);
 		return (int) s;
-	}				
+	}
 
 	return 0;
 }
@@ -177,17 +183,17 @@ static void write_range(struct resource * res) {
 #endif
 	struct page * p;
 	void * v;
-	
+
 	ssize_t s;
 
 	for (i = res->start; i <= res->end; i += is) {
 
 		p = pfn_to_page((i) >> PAGE_SHIFT);
-        
+
         is = min((size_t) PAGE_SIZE, (size_t) (res->end - i + 1));
 
         if (is < PAGE_SIZE) {
-        	// We can't map partial pages and 
+        	// We can't map partial pages and
         	// the linux kernel doesn't use them anyway
         	DBG("Padding partial page: vaddr %p size: %lu", (void *) i, (unsigned long) is);
         	write_padding(is);
@@ -208,7 +214,9 @@ static void write_range(struct resource * res) {
 }
 
 static ssize_t write_vaddr(void * v, size_t is) {
-	return (method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is);
+	return RETRY_IF_INTURRUPTED(
+		(method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is)
+	);
 }
 
 static int setup(void) {
@@ -221,7 +229,7 @@ static void cleanup(void) {
 
 void cleanup_module(void)
 {
-	
+
 }
 
 MODULE_LICENSE("GPL");
