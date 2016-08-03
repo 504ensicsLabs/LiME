@@ -60,7 +60,7 @@ module_param(localhostonly, int, S_IRUGO);
 
 #define RETRY_IF_INTURRUPTED(f) ({ \
 	ssize_t err; \
-	do { err = f; } while(err == EAGAIN || err == EINTR); \
+	do { err = f; } while(err == -EAGAIN || err == -EINTR); \
 	err; \
 })
 
