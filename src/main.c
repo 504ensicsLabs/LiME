@@ -222,7 +222,7 @@ static void write_range(struct resource * res) {
 
 		if (timeout > 0 && ktime_to_ms(ktime_sub(end, start)) > timeout) {
 			DBG("Reading is too slow.  Skipping Range...");
-			write_padding(res->end - i - is);
+			write_padding(res->end - i + 1 - is);
 			break;
 		}
 	}
