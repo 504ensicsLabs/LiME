@@ -1,0 +1,14 @@
+# Dumps
+*.lime
+*.raw
+
+# Objects
+*.o
+*.ko
+
+Module.symvers
+modules.order
+*.mod.c
+*.cmd
+.tmp_versions/
+
