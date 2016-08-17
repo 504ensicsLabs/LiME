@@ -27,7 +27,7 @@ KVER ?= $(shell uname -r)
 
 PWD := $(shell pwd)
 
-.PHONY: modules modules_install clean distclen help
+.PHONY: modules modules_install clean distclean debug
 
 default:
 	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" modules
