@@ -61,185 +61,185 @@ module_param(localhostonly, int, S_IRUGO);
 module_param(timeout, long, S_IRUGO);
 
 #define RETRY_IF_INTURRUPTED(f) ({ \
-	ssize_t err; \
-	do { err = f; } while(err == -EAGAIN || err == -EINTR); \
-	err; \
+    ssize_t err; \
+    do { err = f; } while(err == -EAGAIN || err == -EINTR); \
+    err; \
 })
 
 int init_module (void)
 {
-	if(!path) {
-		DBG("No path parameter specified");
-		return -EINVAL;
-	}
+    if(!path) {
+        DBG("No path parameter specified");
+        return -EINVAL;
+    }
 
-	if(!format) {
-		DBG("No format parameter specified");
-		return -EINVAL;
-	}
+    if(!format) {
+        DBG("No format parameter specified");
+        return -EINVAL;
+    }
 
-	DBG("Parameters");
-	DBG("  PATH: %s", path);
-	DBG("  DIO: %u", dio);
-	DBG("  FORMAT: %s", format);
-	DBG("  LOCALHOSTONLY: %u", localhostonly);
+    DBG("Parameters");
+    DBG("  PATH: %s", path);
+    DBG("  DIO: %u", dio);
+    DBG("  FORMAT: %s", format);
+    DBG("  LOCALHOSTONLY: %u", localhostonly);
 
-	memset(zero_page, 0, sizeof(zero_page));
+    memset(zero_page, 0, sizeof(zero_page));
 
-	if (!strcmp(format, "raw")) mode = LIME_MODE_RAW;
-	else if (!strcmp(format, "lime")) mode = LIME_MODE_LIME;
-	else if (!strcmp(format, "padded")) mode = LIME_MODE_PADDED;
-	else {
-		DBG("Invalid format parameter specified.");
-		return -EINVAL;
-	}
+    if (!strcmp(format, "raw")) mode = LIME_MODE_RAW;
+    else if (!strcmp(format, "lime")) mode = LIME_MODE_LIME;
+    else if (!strcmp(format, "padded")) mode = LIME_MODE_PADDED;
+    else {
+        DBG("Invalid format parameter specified.");
+        return -EINVAL;
+    }
 
-	method = (sscanf(path, "tcp:%d", &port) == 1) ? LIME_METHOD_TCP : LIME_METHOD_DISK;
-	return init();
+    method = (sscanf(path, "tcp:%d", &port) == 1) ? LIME_METHOD_TCP : LIME_METHOD_DISK;
+    return init();
 }
 
 static int init() {
-	struct resource *p;
-	int err = 0;
+    struct resource *p;
+    int err = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
-	resource_size_t p_last = -1;
+    resource_size_t p_last = -1;
 #else
-	__PTRDIFF_TYPE__ p_last = -1;
+    __PTRDIFF_TYPE__ p_last = -1;
 #endif
 
-	DBG("Initializing Dump...");
+    DBG("Initializing Dump...");
 
-	if((err = setup())) {
-		DBG("Setup Error");
-		cleanup();
-		return err;
-	}
+    if((err = setup())) {
+        DBG("Setup Error");
+        cleanup();
+        return err;
+    }
 
-	for (p = iomem_resource.child; p ; p = p->sibling) {
-		if (strcmp(p->name, LIME_RAMSTR))
-			continue;
+    for (p = iomem_resource.child; p ; p = p->sibling) {
+        if (strcmp(p->name, LIME_RAMSTR))
+            continue;
 
-		if (mode == LIME_MODE_LIME && (err = write_lime_header(p))) {
-			DBG("Error writing header 0x%lx - 0x%lx", (long) p->start, (long) p->end);
-			break;
-		} else if (mode == LIME_MODE_PADDED && (err = write_padding((size_t) ((p->start - 1) - p_last)))) {
-			DBG("Error writing padding 0x%lx - 0x%lx", (long) p_last, (long) p->start - 1);
-			break;
-		}
+        if (mode == LIME_MODE_LIME && (err = write_lime_header(p))) {
+            DBG("Error writing header 0x%lx - 0x%lx", (long) p->start, (long) p->end);
+            break;
+        } else if (mode == LIME_MODE_PADDED && (err = write_padding((size_t) ((p->start - 1) - p_last)))) {
+            DBG("Error writing padding 0x%lx - 0x%lx", (long) p_last, (long) p->start - 1);
+            break;
+        }
 
-		write_range(p);
+        write_range(p);
 
-		p_last = p->end;
-	}
+        p_last = p->end;
+    }
 
-	DBG("Memory Dump Complete...");
+    DBG("Memory Dump Complete...");
 
-	cleanup();
+    cleanup();
 
-	return err;
+    return err;
 }
 
 static int write_lime_header(struct resource * res) {
-	ssize_t s;
+    ssize_t s;
 
-	lime_mem_range_header header;
+    lime_mem_range_header header;
 
-	memset(&header, 0, sizeof(lime_mem_range_header));
-	header.magic = LIME_MAGIC;
-	header.version = 1;
-	header.s_addr = res->start;
-	header.e_addr = res->end;
+    memset(&header, 0, sizeof(lime_mem_range_header));
+    header.magic = LIME_MAGIC;
+    header.version = 1;
+    header.s_addr = res->start;
+    header.e_addr = res->end;
 
-	s = write_vaddr(&header, sizeof(lime_mem_range_header));
+    s = write_vaddr(&header, sizeof(lime_mem_range_header));
 
-	if (s != sizeof(lime_mem_range_header)) {
-		DBG("Error sending header %zd", s);
-		return (int) s;
-	}
+    if (s != sizeof(lime_mem_range_header)) {
+        DBG("Error sending header %zd", s);
+        return (int) s;
+    }
 
-	return 0;
+    return 0;
 }
 
 static ssize_t write_padding(size_t s) {
-	size_t i = 0;
-	ssize_t r;
+    size_t i = 0;
+    ssize_t r;
 
-	while(s -= i) {
+    while(s -= i) {
 
-		i = min((size_t) PAGE_SIZE, s);
-		r = write_vaddr(zero_page, i);
+        i = min((size_t) PAGE_SIZE, s);
+        r = write_vaddr(zero_page, i);
 
-		if (r != i) {
-			DBG("Error sending zero page: %zd", r);
-			return r;
-		}
-	}
+        if (r != i) {
+            DBG("Error sending zero page: %zd", r);
+            return r;
+        }
+    }
 
-	return 0;
+    return 0;
 }
 
 static void write_range(struct resource * res) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
-	resource_size_t i, is;
+    resource_size_t i, is;
 #else
-	__PTRDIFF_TYPE__ i, is;
+    __PTRDIFF_TYPE__ i, is;
 #endif
-	struct page * p;
-	void * v;
+    struct page * p;
+    void * v;
 
-	ssize_t s;
-	ktime_t start,end;
+    ssize_t s;
+    ktime_t start,end;
 
-	DBG("Writing range %llx - %llx.", res->start, res->end);
+    DBG("Writing range %llx - %llx.", res->start, res->end);
 
-	for (i = res->start; i <= res->end; i += is) {
-		start = ktime_get();
+    for (i = res->start; i <= res->end; i += is) {
+        start = ktime_get();
 
-		p = pfn_to_page((i) >> PAGE_SHIFT);
+        p = pfn_to_page((i) >> PAGE_SHIFT);
 
         is = min((size_t) PAGE_SIZE, (size_t) (res->end - i + 1));
 
         if (is < PAGE_SIZE) {
-        	// We can't map partial pages and
-        	// the linux kernel doesn't use them anyway
-        	DBG("Padding partial page: vaddr %p size: %lu", (void *) i, (unsigned long) is);
-        	write_padding(is);
+            // We can't map partial pages and
+            // the linux kernel doesn't use them anyway
+            DBG("Padding partial page: vaddr %p size: %lu", (void *) i, (unsigned long) is);
+            write_padding(is);
         } else {
-			v = kmap(p);
-			s = write_vaddr(v, is);
-			kunmap(p);
+            v = kmap(p);
+            s = write_vaddr(v, is);
+            kunmap(p);
 
-			if (s < 0) {
-				DBG("Error writing page: vaddr %p ret: %zd.  Null padding.", v, s);
-				write_padding(is);
-			} else if (s != is) {
-				DBG("Short Read %zu instead of %lu.  Null padding.", s, (unsigned long) is);
-				write_padding(is - s);
-			}
-		}
+            if (s < 0) {
+                DBG("Error writing page: vaddr %p ret: %zd.  Null padding.", v, s);
+                write_padding(is);
+            } else if (s != is) {
+                DBG("Short Read %zu instead of %lu.  Null padding.", s, (unsigned long) is);
+                write_padding(is - s);
+            }
+        }
 
-		end = ktime_get();
+        end = ktime_get();
 
-		if (timeout > 0 && ktime_to_ms(ktime_sub(end, start)) > timeout) {
-			DBG("Reading is too slow.  Skipping Range...");
-			write_padding(res->end - i + 1 - is);
-			break;
-		}
-	}
+        if (timeout > 0 && ktime_to_ms(ktime_sub(end, start)) > timeout) {
+            DBG("Reading is too slow.  Skipping Range...");
+            write_padding(res->end - i + 1 - is);
+            break;
+        }
+    }
 }
 
 static ssize_t write_vaddr(void * v, size_t is) {
-	return RETRY_IF_INTURRUPTED(
-		(method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is)
-	);
+    return RETRY_IF_INTURRUPTED(
+        (method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is)
+    );
 }
 
 static int setup(void) {
-	return (method == LIME_METHOD_TCP) ? setup_tcp() : setup_disk();
+    return (method == LIME_METHOD_TCP) ? setup_tcp() : setup_disk();
 }
 
 static void cleanup(void) {
-	return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
+    return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
 }
 
 void cleanup_module(void)

@@ -133,10 +133,10 @@ Once the acquisition process is complete, we can power down the phone, remove th
 ##LiME Memory Range Header Version 1 Specification <a name="Spec"/>
 ```
 typedef struct {
-	unsigned int magic;		// Always 0x4C694D45 (LiME)
-	unsigned int version;		// Header version number
-	unsigned long long s_addr;	// Starting address of physical RAM range
-	unsigned long long e_addr;	// Ending address of physical RAM range
-	unsigned char reserved[8];	// Currently all zeros
+    unsigned int magic;        // Always 0x4C694D45 (LiME)
+    unsigned int version;        // Header version number
+    unsigned long long s_addr;    // Starting address of physical RAM range
+    unsigned long long e_addr;    // Ending address of physical RAM range
+    unsigned char reserved[8];    // Currently all zeros
 } __attribute__ ((__packed__)) lime_mem_range_header;
 ```
