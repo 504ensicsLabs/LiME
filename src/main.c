@@ -50,7 +50,7 @@ char * path = 0;
 int dio = 0;
 int port = 0;
 int localhostonly = 0;
-long timeout = 5000;
+long timeout = 1000;
 
 extern struct resource iomem_resource;
 

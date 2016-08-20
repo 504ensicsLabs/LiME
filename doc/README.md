@@ -90,7 +90,7 @@ dio           Optional. 1 to enable Direct IO attempt, 0 to disable (default)
 localhostonly Optional. 1 restricts the tcp to only listen on localhost, 0 binds on all interfaces (default)
 timeout       Optional. If it takes longer than the specified  timeout (in milliseconds) to read/write a page
               of memory then the range is assumed to be bad and is skipped.  To disable this set timeout to 0.
-              The default setting is 5000 (5 seconds).
+              The default setting is 1000 (1 second).
 ```
 
 ###Acquisition of Memory over TCP <a name="TCP"/>
