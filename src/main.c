@@ -50,7 +50,6 @@ char * path = 0;
 int dio = 0;
 int port = 0;
 int localhostonly = 0;
-long timeout = 1000;
 
 extern struct resource iomem_resource;
 
@@ -58,7 +57,11 @@ module_param(path, charp, S_IRUGO);
 module_param(dio, int, S_IRUGO);
 module_param(format, charp, S_IRUGO);
 module_param(localhostonly, int, S_IRUGO);
+
+#ifdef LIME_SUPPORTS_TIMING
+long timeout = 1000;
 module_param(timeout, long, S_IRUGO);
+#endif
 
 #define RETRY_IF_INTURRUPTED(f) ({ \
     ssize_t err; \
@@ -83,6 +86,10 @@ int init_module (void)
     DBG("  DIO: %u", dio);
     DBG("  FORMAT: %s", format);
     DBG("  LOCALHOSTONLY: %u", localhostonly);
+
+#ifdef LIME_SUPPORTS_TIMING
+    DBG("  TIMEOUT: %lu", timeout);
+#endif
 
     memset(zero_page, 0, sizeof(zero_page));
 
@@ -188,12 +195,17 @@ static void write_range(struct resource * res) {
     void * v;
 
     ssize_t s;
+
+#ifdef LIME_SUPPORTS_TIMING
     ktime_t start,end;
+#endif
 
     DBG("Writing range %llx - %llx.", res->start, res->end);
 
     for (i = res->start; i <= res->end; i += is) {
+#ifdef LIME_SUPPORTS_TIMING
         start = ktime_get_real();
+#endif
 
         p = pfn_to_page((i) >> PAGE_SHIFT);
 
@@ -218,6 +230,7 @@ static void write_range(struct resource * res) {
             }
         }
 
+#ifdef LIME_SUPPORTS_TIMING
         end = ktime_get_real();
 
         if (timeout > 0 && ktime_to_ms(ktime_sub(end, start)) > timeout) {
@@ -225,6 +238,8 @@ static void write_range(struct resource * res) {
             write_padding(res->end - i + 1 - is);
             break;
         }
+#endif
+        
     }
 }
 

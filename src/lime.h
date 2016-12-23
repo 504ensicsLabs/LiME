@@ -55,6 +55,10 @@
 #define DBG(fmt, args...) do {} while(0)
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+#define LIME_SUPPORTS_TIMING
+#endif
+
 //structures
 
 typedef struct {
