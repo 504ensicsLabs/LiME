@@ -193,7 +193,7 @@ static void write_range(struct resource * res) {
     DBG("Writing range %llx - %llx.", res->start, res->end);
 
     for (i = res->start; i <= res->end; i += is) {
-        start = ktime_get();
+        start = ktime_get_real();
 
         p = pfn_to_page((i) >> PAGE_SHIFT);
 
@@ -218,7 +218,7 @@ static void write_range(struct resource * res) {
             }
         }
 
-        end = ktime_get();
+        end = ktime_get_real();
 
         if (timeout > 0 && ktime_to_ms(ktime_sub(end, start)) > timeout) {
             DBG("Reading is too slow.  Skipping Range...");
