@@ -55,7 +55,7 @@
 #define DBG(fmt, args...) do {} while(0)
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
 #define LIME_SUPPORTS_TIMING
 #endif
 
