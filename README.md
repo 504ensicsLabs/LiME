@@ -32,10 +32,11 @@ dio (optional):    1 ~ attempt to enable Direct IO
 localhostonly (optional):  1 ~ restricts the tcp to only listen on localhost,
                            0 ~ binds on all interfaces (default)
 
-timeout (optional): 1000 ~ max amount of millisecond tolerated to read a page (default).
-                           If a page exceeds the timeout all the memory region is skipped.
-                       0 ~ disable the timeout so also slow region will be acquired.
-                           Suggested if using LiME inside a virtual machine and get a corrupted image.
+timeout (optional): 1000 ~ max amount of milliseconds tolerated to read a page (default).
+                           If a page exceeds the timeout all the memory region are skipped.
+                       0 ~ disable the timeout so the slow region will be acquired.
+
+                           This feature is only available on kernel versions >= 2.6.35. 
 
 ```
 
