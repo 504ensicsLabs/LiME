@@ -20,16 +20,24 @@ LiME utilizes the insmod command to load the module, passing required arguments 
 insmod ./lime.ko "path=<outfile | tcp:<port>> format=<raw|padded|lime> [dio=<0|1>]"
 
 path (required):   outfile ~ name of file to write to on local system (SD Card)
-        tcp:port ~ network port to communicate over
+                   tcp:port ~ network port to communicate over
         
 format (required): raw ~ concatenates all System RAM ranges
-        padded ~ pads all non-System RAM ranges with 0s
-        lime ~ each range prepended with fixed-size header containing address space info
+                   padded ~ pads all non-System RAM ranges with 0s
+                   lime ~ each range prepended with fixed-size header containing address space info
         
 dio (optional):    1 ~ attempt to enable Direct IO
-        0 ~ default, do not attempt Direct IO
+                   0 ~ default, do not attempt Direct IO
         
-localhostonly (optional):  1 restricts the tcp to only listen on localhost, 0 binds on all interfaces (default)
+localhostonly (optional):  1 ~ restricts the tcp to only listen on localhost,
+                           0 ~ binds on all interfaces (default)
+
+timeout (optional): 1000 ~ max amount of milliseconds tolerated to read a page (default).
+                           If a page exceeds the timeout all the memory region are skipped.
+                       0 ~ disable the timeout so the slow region will be acquired.
+
+                           This feature is only available on kernel versions >= 2.6.35. 
+
 ```
 
 ## Examples <a name="example"/>
