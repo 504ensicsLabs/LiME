@@ -32,9 +32,9 @@ dio (optional):    1 ~ attempt to enable Direct IO
 localhostonly (optional):  1 ~ restricts the tcp to only listen on localhost,
                            0 ~ binds on all interfaces (default)
 
-timeout (optional): 1000 ~ max amount of milliseconds tolerated to read a page (default).
+timeout (optional):    n ~ max amount of milliseconds tolerated to read a page.
                            If a page exceeds the timeout all the memory region are skipped.
-                       0 ~ disable the timeout so the slow region will be acquired.
+                       0 ~ disable the timeout so the slow region will be acquired (default).
 
                            This feature is only available on kernel versions >= 2.6.35. 
 
