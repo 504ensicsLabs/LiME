@@ -31,7 +31,7 @@ Disclaimer:  This list may be incomplete. Please let us know if we've missed any
 * Root your device.  In order to run custom kernel modules, you must have a rooted device.
 * Plug the device into computer via a USB cable.
 
-#### SETTING UP THE ENVIORNMENT
+#### SETTING UP THE ENVIRONMENT
 In order to simplify the process, we will first set some environment variables.  In a terminal, type the following commands.
 ```
 export SDK_PATH=/path/to/android-sdk-linux/
