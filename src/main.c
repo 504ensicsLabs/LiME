@@ -42,14 +42,11 @@ extern int write_vaddr_disk(void *, size_t);
 extern int setup_disk(void);
 extern void cleanup_disk(void);
 
-/////////////////////////////////////////////
 extern int ldigest_init(char *);
 extern int ldigest_update(void *, size_t);
 extern int ldigest_final(void);
-/////////////////////////////////////////////
 
 static char * format = 0;
-static char * digest = 0;
 static int mode = 0;
 static int method = 0;
 static char zero_page[PAGE_SIZE];
@@ -58,6 +55,9 @@ char * path = 0;
 int dio = 0;
 int port = 0;
 int localhostonly = 0;
+
+static char * digest = 0;
+int compute_digest = 0;
 
 extern struct resource iomem_resource;
 
@@ -112,6 +112,7 @@ int init_module (void)
     }
 
     method = (sscanf(path, "tcp:%d", &port) == 1) ? LIME_METHOD_TCP : LIME_METHOD_DISK;
+    if (digest) compute_digest = LIME_DIGEST_COMPUTE;
     return init();
 }
 
@@ -132,8 +133,8 @@ static int init() {
         return err;
     }
 
-    if (!ldigest_init(digest))
-        DBG("Digest failed to initialize.");
+    if(compute_digest == LIME_DIGEST_COMPUTE)
+        compute_digest = ldigest_init(digest);
 
     for (p = iomem_resource.child; p ; p = p->sibling) {
 
@@ -151,10 +152,11 @@ static int init() {
         write_range(p);
 
         p_last = p->end;
-	   
+
     }
 
-    ldigest_final();
+    if(compute_digest == LIME_DIGEST_COMPUTE)
+        ldigest_final();
 
     DBG("Memory Dump Complete...");
 
@@ -208,8 +210,8 @@ static void write_range(struct resource * res) {
 #else
     __PTRDIFF_TYPE__ i, is;
 #endif
-    struct page * p, * lp;
-    void * v, * lv;
+    struct page * p;
+    void * v;
 
     ssize_t s;
 
@@ -234,16 +236,18 @@ static void write_range(struct resource * res) {
             write_padding(is);
         } else {
             v = kmap(p);
-            ////////////////////////
-            lv = kmalloc(is, GFP_ATOMIC);
-            memcpy(lv, v, is);
-            //lv = kmap(lp);
-            ////////////////////////
-            //s = write_vaddr(lv, is);
-            s = write_vaddr(lv, is);
-            kfree(lv);
-            /////////////////////////
-            kunmap(p);
+            //If we don't need to compute the digest; lets save some memory 
+            //and cycles
+            if(compute_digest == LIME_DIGEST_COMPUTE) {
+                void * lv = kmalloc(is, GFP_ATOMIC);
+                memcpy(lv, v, is);
+                s = write_vaddr(lv, is);
+                kfree(lv);
+            } else {
+                s = write_vaddr(v, is);
+            }
+
+            kunmap(p);            
 
             if (s < 0) {
                 DBG("Error writing page: vaddr %p ret: %zd.  Null padding.", v, s);
@@ -267,7 +271,9 @@ static void write_range(struct resource * res) {
 }
 
 static ssize_t write_vaddr(void * v, size_t is) {
-    ldigest_update(v, is);
+    if(compute_digest == LIME_DIGEST_COMPUTE)
+        compute_digest = ldigest_update(v, is);
+
     return RETRY_IF_INTURRUPTED(
         (method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is)
     );
@@ -281,8 +287,7 @@ static void cleanup(void) {
     return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
 }
 
-void cleanup_module(void)
-{
+void cleanup_module(void) {
 
 }
 

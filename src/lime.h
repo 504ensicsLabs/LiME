@@ -52,6 +52,8 @@
 #define LIME_METHOD_TCP 1
 #define LIME_METHOD_DISK 2
 
+#define LIME_DIGEST_FAILED -1
+#define LIME_DIGEST_COMPUTE 1
 
 #ifdef LIME_DEBUG
 #define DBG(fmt, args...) do { printk("[LiME] "fmt"\n", ## args); } while (0)
