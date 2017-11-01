@@ -21,6 +21,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+
 #include "lime.h"
 
 // This file
@@ -41,7 +42,14 @@ extern int write_vaddr_disk(void *, size_t);
 extern int setup_disk(void);
 extern void cleanup_disk(void);
 
+/////////////////////////////////////////////
+extern int ldigest_init(char *);
+extern int ldigest_update(void *, size_t);
+extern int ldigest_final(void);
+/////////////////////////////////////////////
+
 static char * format = 0;
+static char * digest = 0;
 static int mode = 0;
 static int method = 0;
 static char zero_page[PAGE_SIZE];
@@ -57,6 +65,7 @@ module_param(path, charp, S_IRUGO);
 module_param(dio, int, S_IRUGO);
 module_param(format, charp, S_IRUGO);
 module_param(localhostonly, int, S_IRUGO);
+module_param(digest, charp, S_IRUGO);
 
 #ifdef LIME_SUPPORTS_TIMING
 long timeout = 1000;
@@ -86,6 +95,7 @@ int init_module (void)
     DBG("  DIO: %u", dio);
     DBG("  FORMAT: %s", format);
     DBG("  LOCALHOSTONLY: %u", localhostonly);
+    DBG("  DIGEST: %s", digest);
 
 #ifdef LIME_SUPPORTS_TIMING
     DBG("  TIMEOUT: %lu", timeout);
@@ -122,22 +132,29 @@ static int init() {
         return err;
     }
 
+    if (!ldigest_init(digest))
+        DBG("Digest failed to initialize.");
+
     for (p = iomem_resource.child; p ; p = p->sibling) {
+
         if (strcmp(p->name, LIME_RAMSTR))
             continue;
 
         if (mode == LIME_MODE_LIME && (err = write_lime_header(p))) {
             DBG("Error writing header 0x%lx - 0x%lx", (long) p->start, (long) p->end);
-            break;
+           break;
         } else if (mode == LIME_MODE_PADDED && (err = write_padding((size_t) ((p->start - 1) - p_last)))) {
             DBG("Error writing padding 0x%lx - 0x%lx", (long) p_last, (long) p->start - 1);
-            break;
+           break;
         }
 
         write_range(p);
 
         p_last = p->end;
+	   
     }
+
+    ldigest_final();
 
     DBG("Memory Dump Complete...");
 
@@ -191,8 +208,8 @@ static void write_range(struct resource * res) {
 #else
     __PTRDIFF_TYPE__ i, is;
 #endif
-    struct page * p;
-    void * v;
+    struct page * p, * lp;
+    void * v, * lv;
 
     ssize_t s;
 
@@ -206,7 +223,6 @@ static void write_range(struct resource * res) {
 #ifdef LIME_SUPPORTS_TIMING
         start = ktime_get_real();
 #endif
-
         p = pfn_to_page((i) >> PAGE_SHIFT);
 
         is = min((size_t) PAGE_SIZE, (size_t) (res->end - i + 1));
@@ -218,7 +234,15 @@ static void write_range(struct resource * res) {
             write_padding(is);
         } else {
             v = kmap(p);
-            s = write_vaddr(v, is);
+            ////////////////////////
+            lv = kmalloc(is, GFP_ATOMIC);
+            memcpy(lv, v, is);
+            //lv = kmap(lp);
+            ////////////////////////
+            //s = write_vaddr(lv, is);
+            s = write_vaddr(lv, is);
+            kfree(lv);
+            /////////////////////////
             kunmap(p);
 
             if (s < 0) {
@@ -239,11 +263,11 @@ static void write_range(struct resource * res) {
             break;
         }
 #endif
-        
     }
 }
 
 static ssize_t write_vaddr(void * v, size_t is) {
+    ldigest_update(v, is);
     return RETRY_IF_INTURRUPTED(
         (method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is)
     );
