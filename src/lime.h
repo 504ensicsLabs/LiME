@@ -32,6 +32,10 @@
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/string.h>
+#include <linux/err.h>
+#include <linux/scatterlist.h>
+
+#include <crypto/hash.h>
 
 #include <net/sock.h>
 #include <net/tcp.h>

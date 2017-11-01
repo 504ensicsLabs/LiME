@@ -21,7 +21,7 @@
 
 
 obj-m := lime.o
-lime-objs := tcp.o disk.o main.o
+lime-objs := tcp.o disk.o main.o hash.o
 
 KVER ?= $(shell uname -r)
 
@@ -35,11 +35,11 @@ default:
 	mv lime.ko lime-$(KVER).ko
 
 debug:
-	KCFLAGS="-DLIME_DEBUG" $(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" modules
+	KCFLAGS="-DLIME_DEBUG" $(MAKE) CONFIG_DEBUG_SG=y -C /lib/modules/$(KVER)/build M="$(PWD)" modules
 	strip --strip-unneeded lime.ko
 	mv lime.ko lime-$(KVER).ko
 
-modules:    main.c disk.c tcp.c lime.h
+modules:    main.c disk.c tcp.c hash.c lime.h
 	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" $@
 	strip --strip-unneeded lime.ko
 
