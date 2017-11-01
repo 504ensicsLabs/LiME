@@ -32,6 +32,10 @@
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/string.h>
+#include <linux/err.h>
+#include <linux/scatterlist.h>
+
+#include <crypto/hash.h>
 
 #include <net/sock.h>
 #include <net/tcp.h>
@@ -48,6 +52,8 @@
 #define LIME_METHOD_TCP 1
 #define LIME_METHOD_DISK 2
 
+#define LIME_DIGEST_FAILED -1
+#define LIME_DIGEST_COMPUTE 1
 
 #ifdef LIME_DEBUG
 #define DBG(fmt, args...) do { printk("[LiME] "fmt"\n", ## args); } while (0)
