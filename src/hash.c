@@ -98,22 +98,21 @@ int ldigest_update(void * v, size_t is) {
 }
 
 int ldigest_final(void) {
-    int ret;
-    char digest_value [digestsize];
+    int ret, i;
+    char digest_value [digestsize * 2 + 1];
     DBG("Finalizing the digest.");
     
     ret = crypto_ahash_final(req);
     if(ret < 0){
         DBG("Failed to finalize digest %i", ret);
-        return LIME_DIGEST_FAILED;
     }
 
-    //sprintf(digest_value, "%02x", output);
-    DBG("Digest is:\n %s", digest_value);
-    int i;
     for(i = 0; i<digestsize; i++){
-        printk(KERN_ERR "%i: %02x", i, output[i]);
+        sprintf(digest_value + i*2, "%02x", output[i]);
     }
+
+    DBG("Digest is:\n %s", digest_value);
+
     ldigest_clean();
 
     return LIME_DIGEST_COMPUTE;
