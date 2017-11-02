@@ -267,6 +267,7 @@ static void write_range(struct resource * res) {
             break;
         }
 #endif
+
     }
 }
 
