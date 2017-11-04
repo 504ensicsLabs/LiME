@@ -28,10 +28,10 @@
 static int write_lime_header(struct resource *);
 static ssize_t write_padding(size_t);
 static void write_range(struct resource *);
-static ssize_t write_vaddr(void *, size_t);
-static int setup(void);
-static void cleanup(void);
 static int init(void);
+ssize_t write_vaddr(void *, size_t);
+int setup(void);
+void cleanup(void);
 
 // External
 extern int write_vaddr_tcp(void *, size_t);
@@ -42,7 +42,7 @@ extern int write_vaddr_disk(void *, size_t);
 extern int setup_disk(void);
 extern void cleanup_disk(void);
 
-extern int ldigest_init(char *);
+extern int ldigest_init(void);
 extern int ldigest_update(void *, size_t);
 extern int ldigest_final(void);
 
@@ -56,7 +56,7 @@ int dio = 0;
 int port = 0;
 int localhostonly = 0;
 
-static char * digest = 0;
+char * digest = 0;
 int compute_digest = 0;
 
 extern struct resource iomem_resource;
@@ -134,7 +134,7 @@ static int init() {
     }
 
     if(compute_digest == LIME_DIGEST_COMPUTE)
-        compute_digest = ldigest_init(digest);
+        compute_digest = ldigest_init();
 
     for (p = iomem_resource.child; p ; p = p->sibling) {
 
@@ -155,12 +155,12 @@ static int init() {
 
     }
 
-    if(compute_digest == LIME_DIGEST_COMPUTE)
-        ldigest_final();
-
     DBG("Memory Dump Complete...");
 
     cleanup();
+
+    if(compute_digest == LIME_DIGEST_COMPUTE)
+        compute_digest = ldigest_final();
 
     return err;
 }
@@ -271,7 +271,7 @@ static void write_range(struct resource * res) {
     }
 }
 
-static ssize_t write_vaddr(void * v, size_t is) {
+ssize_t write_vaddr(void * v, size_t is) {
     if(compute_digest == LIME_DIGEST_COMPUTE)
         compute_digest = ldigest_update(v, is);
 
@@ -280,11 +280,11 @@ static ssize_t write_vaddr(void * v, size_t is) {
     );
 }
 
-static int setup(void) {
+int setup(void) {
     return (method == LIME_METHOD_TCP) ? setup_tcp() : setup_disk();
 }
 
-static void cleanup(void) {
+void cleanup(void) {
     return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
 }
 
