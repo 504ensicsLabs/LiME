@@ -35,10 +35,14 @@
 #include <linux/err.h>
 #include <linux/scatterlist.h>
 
-#include <crypto/hash.h>
-
 #include <net/sock.h>
 #include <net/tcp.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+#include <crypto/hash.h>
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
+#include <linux/crypto.h>
+#endif
 
 #define LIME_RAMSTR "System RAM"
 #define LIME_MAX_FILENAME_SIZE 256
