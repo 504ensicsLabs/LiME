@@ -25,17 +25,27 @@
 #include "lime.h"
 
 // This file
-int ldigest_init(char *);
+int ldigest_init(void);
 int ldigest_update(void *, size_t);
 int ldigest_final(void);
-void ldigest_clean(void);
+static void ldigest_clean(void);
+static int ldigest_write(void);
+
+// External
+extern ssize_t write_vaddr(void *, size_t);
+extern int setup(void);
+extern void cleanup(void);
+
+extern char * digest;
+extern char * path;
 
 static struct crypto_ahash *tfm;
 static struct ahash_request *req;
-static u8 *output;
+static u8 * output;
 static int digestsize;
+static char * digest_value;
 
-int ldigest_init(char * digest) {
+int ldigest_init() {
     DBG("Initializing digest transformation.");
 
     tfm = crypto_alloc_ahash(digest, 0, CRYPTO_ALG_ASYNC);
@@ -56,8 +66,6 @@ int ldigest_init(char * digest) {
 tfm_fail:
     DBG("Failed to load transform for %s error:%ld",
             CRYPTO_ALG_ASYNC, PTR_ERR(tfm));
-    ahash_request_free(req);
-    crypto_free_ahash(tfm);
     ldigest_clean();
 
     return LIME_DIGEST_FAILED;
@@ -70,8 +78,9 @@ int ldigest_update(void * v, size_t is) {
     if (likely(virt_addr_valid((unsigned long) v))) {
         sg_init_one(&sg, (u8*) v, is);
     } else {
-        DBG("Invalid virtual address, manually scanning page.");
         int nbytes = is;
+
+        DBG("Invalid virtual address, manually scanning page.");
         while (nbytes > 0) {
             int len = nbytes;
             int off = offset_in_page(v);
@@ -99,7 +108,7 @@ int ldigest_update(void * v, size_t is) {
 
 int ldigest_final(void) {
     int ret, i;
-    char digest_value [digestsize * 2 + 1];
+    digest_value = kmalloc(digestsize * 2 + 1, GFP_KERNEL);
     DBG("Finalizing the digest.");
     
     ret = crypto_ahash_final(req);
@@ -111,14 +120,47 @@ int ldigest_final(void) {
         sprintf(digest_value + i*2, "%02x", output[i]);
     }
 
-    DBG("Digest is:\n %s", digest_value);
+    DBG("Digest is: %s", digest_value);
 
+    ldigest_write();
     ldigest_clean();
 
-    return LIME_DIGEST_COMPUTE;
+    return LIME_DIGEST_COMPLETE;
 }
 
-void ldigest_clean(void) {
+static int ldigest_write(void) {
+    int i;
+    int err = 0;
+    void *ptr;
+
+    DBG("Writing Out Digest.");
+    ptr = krealloc(path, strlen(path) + strlen(digest) + 2, GFP_KERNEL);
+    if(unlikely(!ptr)) {
+        DBG("Reallocation failed");
+        cleanup();
+    }
+
+    strcpy(path, path);
+    strcat(path,".");
+    strcat(path, digest);
+
+    if((err = setup())) {
+        DBG("Setup Error for Digest File");
+        cleanup();
+    }
+
+    for(i = 0; i<digestsize*2; i++){
+        write_vaddr(&digest_value[i], 1);  
+    }
+
+    DBG("Digest File Write Complete.");
+
+    cleanup();
+
+    return 0;
+}
+
+static void ldigest_clean(void) {
     kfree(output);
     ahash_request_free(req);
     crypto_free_ahash(tfm);
