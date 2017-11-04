@@ -209,10 +209,9 @@ static int ldigest_write(void) {
 
 static void ldigest_clean(void) {
     kfree(output);
-    ahash_request_free(req);
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     crypto_free_ahash(tfm);
+    ahash_request_free(req);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     crypto_free_hash(tfm);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
