@@ -36,12 +36,12 @@ extern ssize_t write_vaddr(void *, size_t);
 extern int setup(void);
 extern void cleanup(void);
 
-static u8 * output;
+static u8 *output;
 static int digestsize;
-static char * digest_value;
+static char *digest_value;
 
-extern char * digest;
-extern char * path;
+extern char *digest;
+extern char *path;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
 static struct crypto_ahash *tfm;
@@ -54,16 +54,15 @@ struct crypto_tfm *tfm;
 #endif
 
 
-int ldigest_init() {
-    DBG("Initializing digest transformation.");
+int ldigest_init(void) {
+    DBG("Initializing Digest Transformation.");
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     tfm = crypto_alloc_ahash(digest, 0, CRYPTO_ALG_ASYNC);
-    if (unlikely(IS_ERR(tfm))) goto tfm_fail;
+    if (unlikely(IS_ERR(tfm))) goto init_fail;
 
     req = ahash_request_alloc(tfm, GFP_ATOMIC);
-    if (unlikely(!req))
-        DBG("Failed to allocate request for %s", CRYPTO_ALG_ASYNC);
+    if (unlikely(!req)) goto init_fail;
 
     digestsize = crypto_ahash_digestsize(tfm);
 
@@ -71,7 +70,8 @@ int ldigest_init() {
     crypto_ahash_init(req);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     tfm = crypto_alloc_hash(digest, 0, CRYPTO_ALG_ASYNC);
-    if (unlikely(IS_ERR(tfm))) goto tfm_fail;
+    if (unlikely(IS_ERR(tfm)))
+        goto init_fail;
 
     desc.tfm = tfm;
     desc.flags = 0;
@@ -80,42 +80,43 @@ int ldigest_init() {
     crypto_hash_init(&desc);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
     tfm = crypto_alloc_tfm(digest, 0);
-    if (unlikely(tfm == NULL)) goto tfm_fail;
+    if (unlikely(tfm == NULL))
+        goto init_fail;
+
     crypto_digest_init(tfm);
 #else
     DBG("Digest not supported for this kernel version.");
-    return LIME_DIGEST_FAILED;
+    goto init_fail;
 #endif
 
     output = kzalloc(sizeof(u8) * digestsize, GFP_ATOMIC);
 
     return LIME_DIGEST_COMPUTE;
 
-tfm_fail:
-    DBG("Failed to load transform for %s error:%ld",
-            CRYPTO_ALG_ASYNC, PTR_ERR(tfm));
+init_fail:
+    DBG("Digest Initialization Failed.");
     ldigest_clean();
 
     return LIME_DIGEST_FAILED;
 }
 
-int ldigest_update(void * v, size_t is) {
+int ldigest_update(void *v, size_t is) {
     int ret;
     struct scatterlist sg;
 
     if (likely(virt_addr_valid((unsigned long) v))) {
-        sg_init_one(&sg, (u8*) v, is);
+        sg_init_one(&sg, (u8 *) v, is);
     } else {
         int nbytes = is;
 
-        DBG("Invalid virtual address, manually scanning page.");
+        DBG("Invalid Virtual Address, Manually Scanning Page.");
         while (nbytes > 0) {
             int len = nbytes;
             int off = offset_in_page(v);
             if (off + len > (int)PAGE_SIZE)
                 len = PAGE_SIZE - off;
             sg_init_table(&sg, 1);
-            sg_set_page(&sg, vmalloc_to_page((u8*) v), len, off);
+            sg_set_page(&sg, vmalloc_to_page((u8 *) v), len, off);
              
             v += len;
             nbytes -= len;
@@ -125,45 +126,46 @@ int ldigest_update(void * v, size_t is) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     ahash_request_set_crypt(req, &sg, output, is);
     ret = crypto_ahash_update(req);
-    if(ret < 0){
-        DBG("Failed to update transform %i", ret);
-        ldigest_clean();
+    if (ret < 0)
+        goto update_fail;
 
-        return LIME_DIGEST_FAILED;
-    }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     ret = crypto_hash_update(&desc, &sg, is);
-    if(ret < 0){
-        DBG("Failed to update transform %i", ret);
-        ldigest_clean();
+    if (ret < 0) 
+        goto update_fail;
 
-        return LIME_DIGEST_FAILED;
-    }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-    ret = crypto_digest_update(tfm, &sg, is);
+    crypto_digest_update(tfm, &sg, is);
 #endif
 
     return LIME_DIGEST_COMPUTE;
+
+update_fail:
+    DBG("Digest Update Failed.");
+    ldigest_clean();
+
+    return LIME_DIGEST_FAILED;
 }
 
 int ldigest_final(void) {
     int ret, i;
-    digest_value = kmalloc(digestsize * 2 + 1, GFP_KERNEL);
+
     DBG("Finalizing the digest.");
+    digest_value = kmalloc(digestsize * 2 + 1, GFP_KERNEL);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     ret = crypto_ahash_final(req);
+    if (ret < 0)
+        goto final_fail;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     ret = crypto_hash_final(&desc, output);
+    if (ret < 0)
+        goto final_fail;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-    ret = crypto_digest_final(tfm, output);
+    crypto_digest_final(tfm, output);
 #endif
 
-    if(ret < 0){
-        DBG("Failed to finalize digest %i", ret);
-    }
-
-    for(i = 0; i<digestsize; i++){
+    for (i = 0; i<digestsize; i++) {
         sprintf(digest_value + i*2, "%02x", output[i]);
     }
 
@@ -173,6 +175,11 @@ int ldigest_final(void) {
     ldigest_clean();
 
     return LIME_DIGEST_COMPLETE;
+
+final_fail:
+    DBG("Failed to finalize the Digest.");
+    ldigest_clean();
+    return LIME_DIGEST_FAILED;
 }
 
 static int ldigest_write(void) {
@@ -182,22 +189,22 @@ static int ldigest_write(void) {
 
     DBG("Writing Out Digest.");
     ptr = krealloc(path, strlen(path) + strlen(digest) + 2, GFP_KERNEL);
-    if(unlikely(!ptr)) {
+    if (unlikely(!ptr)) {
         DBG("Reallocation failed");
         cleanup();
     }
 
     strcpy(path, path);
-    strcat(path,".");
+    strcat(path, ".");
     strcat(path, digest);
 
-    if((err = setup())) {
+    if ((err = setup())) {
         DBG("Setup Error for Digest File");
         cleanup();
     }
 
-    for(i = 0; i<digestsize*2; i++){
-        write_vaddr(&digest_value[i], 1);  
+    for (i = 0; i < digestsize*2; i++) {
+        write_vaddr(&digest_value[i], 1);
     }
 
     DBG("Digest File Write Complete.");
@@ -217,4 +224,5 @@ static void ldigest_clean(void) {
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
     crypto_free_tfm(tfm);
 #endif
+
 }
