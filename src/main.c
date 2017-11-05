@@ -49,7 +49,7 @@ extern int ldigest_final(void);
 static char * format = 0;
 static int mode = 0;
 static int method = 0;
-static char zero_page[PAGE_SIZE];
+static char * zero_page;
 
 char * path = 0;
 int dio = 0;
@@ -101,7 +101,7 @@ int init_module (void)
     DBG("  TIMEOUT: %lu", timeout);
 #endif
 
-    memset(zero_page, 0, sizeof(zero_page));
+    zero_page = kzalloc(PAGE_SIZE, GFP_KERNEL);
 
     if (!strcmp(format, "raw")) mode = LIME_MODE_RAW;
     else if (!strcmp(format, "lime")) mode = LIME_MODE_LIME;
@@ -152,7 +152,6 @@ static int init() {
         write_range(p);
 
         p_last = p->end;
-
     }
 
     DBG("Memory Dump Complete...");
