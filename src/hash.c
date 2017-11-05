@@ -94,7 +94,7 @@ int ldigest_init(void) {
     return LIME_DIGEST_COMPUTE;
 
 init_fail:
-    DBG("Digest Initialization Failed.")
+    DBG("Digest Initialization Failed.");
     ldigest_clean();
 
     return LIME_DIGEST_FAILED;
@@ -126,43 +126,44 @@ int ldigest_update(void *v, size_t is) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     ahash_request_set_crypt(req, &sg, output, is);
     ret = crypto_ahash_update(req);
-    if (ret < 0) {
-        DBG("Failed to Update Transform %i", ret);
-        ldigest_clean();
+    if (ret < 0)
+        goto update_fail;
 
-        return LIME_DIGEST_FAILED;
-    }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     ret = crypto_hash_update(&desc, &sg, is);
-    if (ret < 0) {
-        DBG("Failed to update transform %i", ret);
-        ldigest_clean();
+    if (ret < 0) 
+        goto update_fail;
 
-        return LIME_DIGEST_FAILED;
-    }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-    ret = crypto_digest_update(tfm, &sg, is);
+    crypto_digest_update(tfm, &sg, is);
 #endif
 
     return LIME_DIGEST_COMPUTE;
+
+update_fail:
+    DBG("Digest Update Failed.");
+    ldigest_clean();
+
+    return LIME_DIGEST_FAILED;
 }
 
 int ldigest_final(void) {
     int ret, i;
-    digest_value = kmalloc(digestsize * 2 + 1, GFP_KERNEL);
+
     DBG("Finalizing the digest.");
+    digest_value = kmalloc(digestsize * 2 + 1, GFP_KERNEL);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     ret = crypto_ahash_final(req);
+    if (ret < 0)
+        goto final_fail;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     ret = crypto_hash_final(&desc, output);
+    if (ret < 0)
+        goto final_fail;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-    ret = crypto_digest_final(tfm, output);
+    crypto_digest_final(tfm, output);
 #endif
-
-    if (ret < 0) {
-        DBG("Failed to finalize digest %i", ret);
-    }
 
     for (i = 0; i<digestsize; i++) {
         sprintf(digest_value + i*2, "%02x", output[i]);
@@ -174,6 +175,11 @@ int ldigest_final(void) {
     ldigest_clean();
 
     return LIME_DIGEST_COMPLETE;
+
+final_fail:
+    DBG("Failed to finalize the Digest.");
+    ldigest_clean();
+    return LIME_DIGEST_FAILED;
 }
 
 static int ldigest_write(void) {
@@ -218,4 +224,5 @@ static void ldigest_clean(void) {
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
     crypto_free_tfm(tfm);
 #endif
+
 }
