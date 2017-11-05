@@ -23,9 +23,9 @@ insmod ./lime.ko "path=<outfile | tcp:<port>> format=<raw|padded|lime> [digest=<
 path (required):   outfile ~ name of file to write to on local system (SD Card)
                    tcp:port ~ network port to communicate over
         
-format (required): raw ~ concatenates all System RAM ranges
-                   padded ~ pads all non-System RAM ranges with 0s
+format (required): padded ~ pads all non-System RAM ranges with 0s
                    lime ~ each range prepended with fixed-size header containing address space info
+                   raw ~ concatenates all System RAM ranges (warning : original position of dumped memory is likely to be lost)
 
 digest (optional): Hash the RAM and provide a .digest file with the sum.
                    Supports kernel version 2.6.11 and up. See below for
