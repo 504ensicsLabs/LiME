@@ -95,7 +95,11 @@ ssize_t write_vaddr_disk(void * v, size_t is) {
 
     pos = f->f_pos;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
+    s = kernel_write(f, v, is, &pos);
+#else
     s = vfs_write(f, v, is, &pos);
+#endif
 
     if (s == is) {
         f->f_pos = pos;
