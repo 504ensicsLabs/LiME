@@ -2,6 +2,7 @@
 ## Contents
 * [Compiling](#Compile)
   * [Linux](#Linux)
+  * [External](#External)
   * [Debug](#Debug)
   * [Android](#Android)
 * [Usage](#Usage)
@@ -15,6 +16,9 @@
 LiME is a Loadable Kernel Module (LKM).  LiME ships with a default Makefile that should be suitable for compilation on most modern Linux systems.
 
 For detailed instructions on using LKM see https://www.kernel.org/doc/Documentation/kbuild/modules.txt.
+
+### External <a name="External"/>
+LiME can be compiled externally from the target in order to provide a more forensically sound and secure method. Follow this [guide](./external_modules.md) to learn how.
 
 ### Debug  <a name="Debug"/>
 When compiling LiME with the default Makefile, using the command “make debug” will compile a LiME module with extra debug output.  The output can be read by using the dmesg command on Linux.
