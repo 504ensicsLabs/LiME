@@ -79,7 +79,11 @@ int setup_tcp() {
     fs = get_fs();
     set_fs(KERNEL_DS);
 
-    sock_setsockopt(control, SOL_SOCKET, SO_SNDBUF, (void *) &buffsize, sizeof (int));
+    r = sock_setsockopt(control, SOL_SOCKET, SO_SNDBUF, (void *) &buffsize, sizeof (int));
+    if (r < 0) {
+        DBG("Error setting socket options");
+        return r;
+    }
 
     set_fs(fs);
 

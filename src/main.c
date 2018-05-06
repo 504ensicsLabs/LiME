@@ -21,16 +21,17 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+
 #include "lime.h"
 
 // This file
 static int write_lime_header(struct resource *);
 static ssize_t write_padding(size_t);
 static void write_range(struct resource *);
-static ssize_t write_vaddr(void *, size_t);
-static int setup(void);
-static void cleanup(void);
 static int init(void);
+ssize_t write_vaddr(void *, size_t);
+int setup(void);
+void cleanup(void);
 
 // External
 extern int write_vaddr_tcp(void *, size_t);
@@ -41,15 +42,22 @@ extern int write_vaddr_disk(void *, size_t);
 extern int setup_disk(void);
 extern void cleanup_disk(void);
 
+extern int ldigest_init(void);
+extern int ldigest_update(void *, size_t);
+extern int ldigest_final(void);
+
 static char * format = 0;
 static int mode = 0;
 static int method = 0;
-static char zero_page[PAGE_SIZE];
+static char * zero_page;
 
 char * path = 0;
 int dio = 0;
 int port = 0;
 int localhostonly = 0;
+
+char * digest = 0;
+int compute_digest = 0;
 
 extern struct resource iomem_resource;
 
@@ -57,6 +65,7 @@ module_param(path, charp, S_IRUGO);
 module_param(dio, int, S_IRUGO);
 module_param(format, charp, S_IRUGO);
 module_param(localhostonly, int, S_IRUGO);
+module_param(digest, charp, S_IRUGO);
 
 #ifdef LIME_SUPPORTS_TIMING
 long timeout = 1000;
@@ -86,12 +95,13 @@ int init_module (void)
     DBG("  DIO: %u", dio);
     DBG("  FORMAT: %s", format);
     DBG("  LOCALHOSTONLY: %u", localhostonly);
+    DBG("  DIGEST: %s", digest);
 
 #ifdef LIME_SUPPORTS_TIMING
     DBG("  TIMEOUT: %lu", timeout);
 #endif
 
-    memset(zero_page, 0, sizeof(zero_page));
+    zero_page = kzalloc(PAGE_SIZE, GFP_KERNEL);
 
     if (!strcmp(format, "raw")) mode = LIME_MODE_RAW;
     else if (!strcmp(format, "lime")) mode = LIME_MODE_LIME;
@@ -102,6 +112,7 @@ int init_module (void)
     }
 
     method = (sscanf(path, "tcp:%d", &port) == 1) ? LIME_METHOD_TCP : LIME_METHOD_DISK;
+    if (digest) compute_digest = LIME_DIGEST_COMPUTE;
     return init();
 }
 
@@ -122,16 +133,20 @@ static int init() {
         return err;
     }
 
+    if(compute_digest == LIME_DIGEST_COMPUTE)
+        compute_digest = ldigest_init();
+
     for (p = iomem_resource.child; p ; p = p->sibling) {
+
         if (strcmp(p->name, LIME_RAMSTR))
             continue;
 
         if (mode == LIME_MODE_LIME && (err = write_lime_header(p))) {
             DBG("Error writing header 0x%lx - 0x%lx", (long) p->start, (long) p->end);
-            break;
+           break;
         } else if (mode == LIME_MODE_PADDED && (err = write_padding((size_t) ((p->start - 1) - p_last)))) {
             DBG("Error writing padding 0x%lx - 0x%lx", (long) p_last, (long) p->start - 1);
-            break;
+           break;
         }
 
         write_range(p);
@@ -142,6 +157,9 @@ static int init() {
     DBG("Memory Dump Complete...");
 
     cleanup();
+
+    if(compute_digest == LIME_DIGEST_COMPUTE)
+        compute_digest = ldigest_final();
 
     return err;
 }
@@ -206,7 +224,6 @@ static void write_range(struct resource * res) {
 #ifdef LIME_SUPPORTS_TIMING
         start = ktime_get_real();
 #endif
-
         p = pfn_to_page((i) >> PAGE_SHIFT);
 
         is = min((size_t) PAGE_SIZE, (size_t) (res->end - i + 1));
@@ -218,8 +235,18 @@ static void write_range(struct resource * res) {
             write_padding(is);
         } else {
             v = kmap(p);
-            s = write_vaddr(v, is);
-            kunmap(p);
+            //If we don't need to compute the digest; lets save some memory 
+            //and cycles
+            if(compute_digest == LIME_DIGEST_COMPUTE) {
+                void * lv = kmalloc(is, GFP_ATOMIC);
+                memcpy(lv, v, is);
+                s = write_vaddr(lv, is);
+                kfree(lv);
+            } else {
+                s = write_vaddr(v, is);
+            }
+
+            kunmap(p);            
 
             if (s < 0) {
                 DBG("Error writing page: vaddr %p ret: %zd.  Null padding.", v, s);
@@ -239,26 +266,28 @@ static void write_range(struct resource * res) {
             break;
         }
 #endif
-        
+
     }
 }
 
-static ssize_t write_vaddr(void * v, size_t is) {
+ssize_t write_vaddr(void * v, size_t is) {
+    if(compute_digest == LIME_DIGEST_COMPUTE)
+        compute_digest = ldigest_update(v, is);
+
     return RETRY_IF_INTURRUPTED(
         (method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is)
     );
 }
 
-static int setup(void) {
+int setup(void) {
     return (method == LIME_METHOD_TCP) ? setup_tcp() : setup_disk();
 }
 
-static void cleanup(void) {
+void cleanup(void) {
     return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
 }
 
-void cleanup_module(void)
-{
+void cleanup_module(void) {
 
 }
 
