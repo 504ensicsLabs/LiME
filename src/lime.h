@@ -34,6 +34,7 @@
 #include <linux/string.h>
 #include <linux/err.h>
 #include <linux/scatterlist.h>
+#include <linux/delay.h>
 
 #include <net/sock.h>
 #include <net/tcp.h>
