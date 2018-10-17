@@ -198,9 +198,9 @@ static int ldigest_write(void) {
     strcat(path, ".");
     strcat(path, digest);
 
+    // Sleep due to the rapid succession of port bind.
     msleep(4);
     if ((err = setup())) {
-        
         DBG("Setup Error for Digest File");
         cleanup();
     }
