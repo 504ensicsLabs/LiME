@@ -67,6 +67,11 @@ Acquiring to sdcard
 
 ## Available Digests
 Really LiME will support any digest algorithm that the kernel library can.
+Collecting a digest file when dumping over tcp will require 2 separate connections.
+```
+$ nc localhost 4444 > ram.lime
+$ nc localhost 4444 > ram.sha1
+```
 For a quick reference here is a list of supported digests.
 ### All kernel versions
 ```
