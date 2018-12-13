@@ -135,11 +135,13 @@ void cleanup_tcp() {
     if (accept && accept->ops) {
         accept->ops->shutdown(accept, 0);
         accept->ops->release(accept);
+        accept = NULL;
     }
 
     if (control && control->ops) {
         control->ops->shutdown(control, 0);
         control->ops->release(control);
+        control = NULL;
     }
 }
 

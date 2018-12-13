@@ -203,6 +203,8 @@ static int ldigest_write(void) {
     if ((err = setup())) {
         DBG("Setup Error for Digest File");
         cleanup();
+
+        return 1;
     }
 
     for (i = 0; i < digestsize*2; i++) {
