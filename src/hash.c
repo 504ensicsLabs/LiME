@@ -184,6 +184,7 @@ final_fail:
 
 static int ldigest_write(void) {
     int i;
+    int retry;
     int err = 0;
     void *ptr;
 
@@ -198,13 +199,21 @@ static int ldigest_write(void) {
     strcat(path, ".");
     strcat(path, digest);
 
-    // Sleep due to the rapid succession of port bind.
-    msleep(4);
-    if ((err = setup())) {
-        DBG("Setup Error for Digest File");
-        cleanup();
+    for (retry = 1; retry < 11; retry++) {
+        if ((err = setup())) {
+            DBG("Socket bind failed. Try: %i/10", retry);
+            cleanup();
+            msleep(5000);
+        } else {
+            break;
+        }
+    }
 
-        return 1;
+    if (err) {
+            DBG("Setup Error for Digest File");
+            cleanup();
+
+            return LIME_DIGEST_FAILED;
     }
 
     for (i = 0; i < digestsize*2; i++) {
