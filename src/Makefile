@@ -41,6 +41,10 @@ debug:
 	strip --strip-unneeded lime.ko
 	mv lime.ko lime-$(KVER).ko
 
+symbols:
+	$(MAKE) -C $(KDIR) M="$(PWD)" modules
+	mv lime.ko lime-$(KVER).ko
+
 modules:    main.c disk.c tcp.c hash.c lime.h
 	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" $@
 	strip --strip-unneeded lime.ko

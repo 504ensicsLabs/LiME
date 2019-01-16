@@ -4,6 +4,7 @@
   * [Linux](#Linux)
   * [External](#External)
   * [Debug](#Debug)
+  * [Symbols](#Symbols)
   * [Android](#Android)
 * [Usage](#Usage)
   * [Parameters](#Params)
@@ -22,6 +23,9 @@ LiME can be compiled externally from the target in order to provide a more foren
 
 ### Debug  <a name="Debug"/>
 When compiling LiME with the default Makefile, using the command “make debug” will compile a LiME module with extra debug output.  The output can be read by using the dmesg command on Linux.
+
+### Symbols  <a name="Symbols"/>
+When compiling LiME with the default Makefile, using the command “make symbols" will compile a LiME module without stripping symbols. This is useful for tools such as Volatility where one can create a profile without loading second module.
 
 ### Android <a name="Android"/>
 In order to cross-compile LiME for use on an Android device, additional steps are required.
