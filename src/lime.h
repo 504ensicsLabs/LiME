@@ -77,6 +77,10 @@
 #define LIME_SUPPORTS_TIMING
 #endif
 
+#ifdef CONFIG_ZLIB_DEFLATE
+#define LIME_SUPPORTS_DEFLATE
+#endif
+
 //structures
 
 typedef struct {

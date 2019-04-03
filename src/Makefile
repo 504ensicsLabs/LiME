@@ -21,7 +21,7 @@
 
 
 obj-m := lime.o
-lime-objs := tcp.o disk.o main.o hash.o
+lime-objs := tcp.o disk.o main.o hash.o deflate.o
 
 KVER ?= $(shell uname -r)
 
