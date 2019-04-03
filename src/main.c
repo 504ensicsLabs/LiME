@@ -21,7 +21,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-
 #include "lime.h"
 
 // This file
@@ -29,22 +28,25 @@ static int write_lime_header(struct resource *);
 static ssize_t write_padding(size_t);
 static void write_range(struct resource *);
 static int init(void);
-ssize_t write_vaddr(void *, size_t);
-int setup(void);
-void cleanup(void);
+static ssize_t write_vaddr(void *, size_t);
+static int setup(void);
+static void cleanup(void);
 
 // External
-extern int write_vaddr_tcp(void *, size_t);
+extern ssize_t write_vaddr_tcp(void *, size_t);
 extern int setup_tcp(void);
 extern void cleanup_tcp(void);
 
-extern int write_vaddr_disk(void *, size_t);
-extern int setup_disk(void);
+extern ssize_t write_vaddr_disk(void *, size_t);
+extern int setup_disk(char *, int);
 extern void cleanup_disk(void);
 
 extern int ldigest_init(void);
 extern int ldigest_update(void *, size_t);
 extern int ldigest_final(void);
+extern int ldigest_write_tcp(void);
+extern int ldigest_write_disk(void);
+extern int ldigest_clean(void);
 
 static char * format = 0;
 static int mode = 0;
@@ -71,12 +73,6 @@ module_param(digest, charp, S_IRUGO);
 long timeout = 1000;
 module_param(timeout, long, S_IRUGO);
 #endif
-
-#define RETRY_IF_INTURRUPTED(f) ({ \
-    ssize_t err; \
-    do { err = f; } while(err == -EAGAIN || err == -EINTR); \
-    err; \
-})
 
 int init_module (void)
 {
@@ -133,7 +129,7 @@ static int init() {
         return err;
     }
 
-    if(compute_digest == LIME_DIGEST_COMPUTE)
+    if (digest)
         compute_digest = ldigest_init();
 
     for (p = iomem_resource.child; p ; p = p->sibling) {
@@ -158,8 +154,23 @@ static int init() {
 
     cleanup();
 
-    if(compute_digest == LIME_DIGEST_COMPUTE)
+    if (compute_digest == LIME_DIGEST_COMPUTE) {
+        DBG("Writing Out Digest.");
+
         compute_digest = ldigest_final();
+
+        if (compute_digest == LIME_DIGEST_COMPLETE) {
+            if (method == LIME_METHOD_TCP)
+                err = ldigest_write_tcp();
+            else
+                err = ldigest_write_disk();
+
+            DBG("Digest Write %s.", (err == 0) ? "Complete" : "Failed");
+        }
+    }
+
+    if (digest)
+        ldigest_clean();
 
     return err;
 }
@@ -237,7 +248,7 @@ static void write_range(struct resource * res) {
             v = kmap(p);
             //If we don't need to compute the digest; lets save some memory 
             //and cycles
-            if(compute_digest == LIME_DIGEST_COMPUTE) {
+            if (compute_digest == LIME_DIGEST_COMPUTE) {
                 void * lv = kmalloc(is, GFP_ATOMIC);
                 memcpy(lv, v, is);
                 s = write_vaddr(lv, is);
@@ -250,10 +261,14 @@ static void write_range(struct resource * res) {
 
             if (s < 0) {
                 DBG("Error writing page: vaddr %p ret: %zd.  Null padding.", v, s);
-                write_padding(is);
+                s = write_padding(is);
             } else if (s != is) {
                 DBG("Short Read %zu instead of %lu.  Null padding.", s, (unsigned long) is);
-                write_padding(is - s);
+                s = write_padding(is - s);
+            }
+            if (s < 0) {
+                DBG("Too many errors. Skipping Range...");
+                break;
             }
         }
 
@@ -270,20 +285,20 @@ static void write_range(struct resource * res) {
     }
 }
 
-ssize_t write_vaddr(void * v, size_t is) {
-    if(compute_digest == LIME_DIGEST_COMPUTE)
+static ssize_t write_vaddr(void * v, size_t is) {
+    if (compute_digest == LIME_DIGEST_COMPUTE)
         compute_digest = ldigest_update(v, is);
 
-    return RETRY_IF_INTURRUPTED(
+    return RETRY_IF_INTERRUPTED(
         (method == LIME_METHOD_TCP) ? write_vaddr_tcp(v, is) : write_vaddr_disk(v, is)
     );
 }
 
-int setup(void) {
-    return (method == LIME_METHOD_TCP) ? setup_tcp() : setup_disk();
+static int setup(void) {
+    return (method == LIME_METHOD_TCP) ? setup_tcp() : setup_disk(path, dio);
 }
 
-void cleanup(void) {
+static void cleanup(void) {
     return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
 }
 

@@ -24,17 +24,14 @@
 
 #include "lime.h"
 
-// This file
-int ldigest_init(void);
-int ldigest_update(void *, size_t);
-int ldigest_final(void);
-static void ldigest_clean(void);
-static int ldigest_write(void);
-
 // External
-extern ssize_t write_vaddr(void *, size_t);
-extern int setup(void);
-extern void cleanup(void);
+extern ssize_t write_vaddr_tcp(void *, size_t);
+extern int setup_tcp(void);
+extern void cleanup_tcp(void);
+
+extern ssize_t write_vaddr_disk(void *, size_t);
+extern int setup_disk(char *, int);
+extern void cleanup_disk(void);
 
 static u8 *output;
 static int digestsize;
@@ -52,7 +49,6 @@ static struct hash_desc desc;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
 struct crypto_tfm *tfm;
 #endif
-
 
 int ldigest_init(void) {
     DBG("Initializing Digest Transformation.");
@@ -95,8 +91,6 @@ int ldigest_init(void) {
 
 init_fail:
     DBG("Digest Initialization Failed.");
-    ldigest_clean();
-
     return LIME_DIGEST_FAILED;
 }
 
@@ -142,8 +136,6 @@ int ldigest_update(void *v, size_t is) {
 
 update_fail:
     DBG("Digest Update Failed.");
-    ldigest_clean();
-
     return LIME_DIGEST_FAILED;
 }
 
@@ -170,39 +162,21 @@ int ldigest_final(void) {
     }
 
     DBG("Digest is: %s", digest_value);
-
-    ldigest_write();
-    ldigest_clean();
-
     return LIME_DIGEST_COMPLETE;
 
 final_fail:
     DBG("Failed to finalize the Digest.");
-    ldigest_clean();
     return LIME_DIGEST_FAILED;
 }
 
-static int ldigest_write(void) {
-    int i;
+int ldigest_write_tcp(void) {
     int retry;
     int err = 0;
-    void *ptr;
-
-    DBG("Writing Out Digest.");
-    ptr = krealloc(path, strlen(path) + strlen(digest) + 2, GFP_KERNEL);
-    if (unlikely(!ptr)) {
-        DBG("Reallocation failed");
-        cleanup();
-    }
-
-    strcpy(path, path);
-    strcat(path, ".");
-    strcat(path, digest);
 
     for (retry = 1; retry < 11; retry++) {
-        if ((err = setup())) {
+        if ((err = setup_tcp())) {
             DBG("Socket bind failed. Try: %i/10", retry);
-            cleanup();
+            cleanup_tcp();
             msleep(5000);
         } else {
             break;
@@ -210,24 +184,45 @@ static int ldigest_write(void) {
     }
 
     if (err) {
-            DBG("Setup Error for Digest File");
-            cleanup();
-
-            return LIME_DIGEST_FAILED;
+        DBG("Setup Error for Digest File.");
+        cleanup_tcp();
+        return LIME_DIGEST_FAILED;
     }
 
-    for (i = 0; i < digestsize*2; i++) {
-        write_vaddr(&digest_value[i], 1);
-    }
+    RETRY_IF_INTERRUPTED(write_vaddr_tcp(digest_value, digestsize * 2));
 
-    DBG("Digest File Write Complete.");
-
-    cleanup();
+    cleanup_tcp();
 
     return 0;
 }
 
-static void ldigest_clean(void) {
+int ldigest_write_disk(void) {
+    char *p;
+    int ret = 0;
+
+    p = kmalloc(strlen(path) + strlen(digest) + 2, GFP_KERNEL);
+    if (!p)
+        return LIME_DIGEST_FAILED;
+
+    strcpy(p, path);
+    strcat(p, ".");
+    strcat(p, digest);
+
+    if (setup_disk(p, 0)) {
+        ret = LIME_DIGEST_FAILED;
+        goto out;
+    }
+
+    RETRY_IF_INTERRUPTED(write_vaddr_disk(digest_value, digestsize * 2));
+
+out:
+    cleanup_disk();
+    kfree(p);
+
+    return ret;
+}
+
+void ldigest_clean(void) {
     kfree(output);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     crypto_free_ahash(tfm);
@@ -237,5 +232,4 @@ static void ldigest_clean(void) {
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
     crypto_free_tfm(tfm);
 #endif
-
 }
