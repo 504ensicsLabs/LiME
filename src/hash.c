@@ -170,21 +170,11 @@ final_fail:
 }
 
 int ldigest_write_tcp(void) {
-    int retry;
-    int err = 0;
+    int ret;
 
-    for (retry = 1; retry < 11; retry++) {
-        if ((err = setup_tcp())) {
-            DBG("Socket bind failed. Try: %i/10", retry);
-            cleanup_tcp();
-            msleep(5000);
-        } else {
-            break;
-        }
-    }
-
-    if (err) {
-        DBG("Setup Error for Digest File.");
+    ret = setup_tcp();
+    if (ret < 0) {
+        DBG("Socket bind failed for digest file: %d", ret);
         cleanup_tcp();
         return LIME_DIGEST_FAILED;
     }
