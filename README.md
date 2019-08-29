@@ -20,19 +20,22 @@ LiME utilizes the insmod command to load the module, passing required arguments 
 ```
 insmod ./lime.ko "path=<outfile | tcp:<port>> format=<raw|padded|lime> [digest=<digest>] [dio=<0|1>]"
 
-path (required):   outfile ~ name of file to write to on local system (SD Card)
-                   tcp:port ~ network port to communicate over
+path (required):     outfile ~ name of file to write to on local system (SD Card)
+                     tcp:port ~ network port to communicate over
         
-format (required): padded ~ pads all non-System RAM ranges with 0s
-                   lime ~ each range prepended with fixed-size header containing address space info
-                   raw ~ concatenates all System RAM ranges (warning : original position of dumped memory is likely to be lost)
+format (required):   padded ~ pads all non-System RAM ranges with 0s
+                     lime ~ each range prepended with fixed-size header containing address space info
+                     raw ~ concatenates all System RAM ranges (warning : original position of dumped memory is likely to be lost)
 
-digest (optional): Hash the RAM and provide a .digest file with the sum.
-                   Supports kernel version 2.6.11 and up. See below for
-                   available digest options.
+digest (optional):   Hash the RAM and provide a .digest file with the sum.
+                     Supports kernel version 2.6.11 and up. See below for
+                     available digest options.
 
-dio (optional):    1 ~ attempt to enable Direct IO
-                   0 ~ default, do not attempt Direct IO
+compress (optional): 1 ~ compress output with zlib
+                     0 ~ do not compress (default)
+
+dio (optional):      1 ~ attempt to enable Direct IO
+                     0 ~ do not attempt Direct IO (default)
         
 localhostonly (optional):  1 ~ restricts the tcp to only listen on localhost,
                            0 ~ binds on all interfaces (default)
@@ -89,6 +92,19 @@ sha3-224, sha3-256, sha3-384, sha3-512
 rmd128, rmd160, rmd256, rmd320
 ```
 
+## Compression
+
+Compression can reduce significantly the time required to acquire a memory capture. It can achieve the speedup of 4x over uncompressed transfers with a few memory overhead (~ 24 KB).
+
+The RAM file will be in the zlib format, which is different from the gzip or zip formats. The reason is that the deflate library embedded in the kernel do not support them.
+
+To decompress it you can use [pigz](https://zlib.net/pigz/) or any zlib-compatible library.
+
+```
+$ nc localhost 4444 | unpigz > ram.lime
+```
+
+Note that only the RAM file is compressed. The digest file is not compressed, and the hash value will match the uncompressed data.
 
 ## Presentation <a name="present"/>
 LiME was first presented at Shmoocon 2012 by Joe Sylve.  

@@ -23,44 +23,42 @@
 
 #include "lime.h"
 
-
 ssize_t write_vaddr_disk(void *, size_t);
-int setup_disk(void);
-void cleanup_disk(void);
-
-static void disable_dio(void);
 
 static struct file * f = NULL;
-extern char * path;
-extern int dio;
-static int reopen = 0;
 
-static void disable_dio() {
-    DBG("Direct IO may not be supported on this file system. Retrying.");
-    dio = 0;
-    reopen = 1;
-    cleanup_disk();
-    setup_disk();
+static int dio_write_test(char *path, int oflags)
+{
+    int ok;
+
+    f = filp_open(path, oflags | O_DIRECT, 0444);
+    if (f && !IS_ERR(f)) {
+        ok = write_vaddr_disk("DIO", 3) == 3;
+        filp_close(f, NULL);
+    } else {
+        ok = 0;
+    }
+
+    return ok;
 }
 
-int setup_disk() {
+int setup_disk(char *path, int dio) {
     mm_segment_t fs;
+    int oflags;
     int err;
 
     fs = get_fs();
     set_fs(KERNEL_DS);
 
-    if (dio && reopen) {
-        f = filp_open(path, O_WRONLY | O_CREAT | O_LARGEFILE | O_SYNC | O_DIRECT, 0444);
-    } else if (dio) {
-        f = filp_open(path, O_WRONLY | O_CREAT | O_LARGEFILE | O_TRUNC | O_SYNC | O_DIRECT, 0444);
+    oflags = O_WRONLY | O_CREAT | O_LARGEFILE | O_TRUNC | O_SYNC;
+
+    if (dio && dio_write_test(path, oflags)) {
+        oflags |= O_DIRECT;
+    } else {
+        DBG("Direct IO Disabled");
     }
 
-    if(!dio || (f == ERR_PTR(-EINVAL))) {
-        DBG("Direct IO Disabled");
-        f = filp_open(path, O_WRONLY | O_CREAT | O_LARGEFILE | O_TRUNC, 0444);
-        dio = 0;
-    }
+    f = filp_open(path, oflags, 0444);
 
     if (!f || IS_ERR(f)) {
         DBG("Error opening file %ld", PTR_ERR(f));
@@ -75,7 +73,7 @@ int setup_disk() {
     return 0;
 }
 
-void cleanup_disk() {
+void cleanup_disk(void) {
     mm_segment_t fs;
 
     fs = get_fs();
@@ -106,12 +104,6 @@ ssize_t write_vaddr_disk(void * v, size_t is) {
     }
 
     set_fs(fs);
-
-    if (s != is && dio) {
-        disable_dio();
-        f->f_pos = pos;
-        return write_vaddr_disk(v, is);
-    }
 
     return s;
 }
