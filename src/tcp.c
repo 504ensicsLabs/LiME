@@ -112,11 +112,7 @@ int setup_tcp() {
         return r;
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
-    r = kernel_accept(control, &accept, 0, true);
-#else
     r = kernel_accept(control, &accept, 0);
-#endif
 
     if (r < 0) {
         DBG("Error accepting socket");
