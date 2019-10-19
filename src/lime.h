@@ -34,7 +34,6 @@
 #include <linux/string.h>
 #include <linux/err.h>
 #include <linux/scatterlist.h>
-#include <linux/delay.h>
 
 #include <net/sock.h>
 #include <net/tcp.h>
@@ -67,8 +66,18 @@
 #define DBG(fmt, args...) do {} while(0)
 #endif
 
+#define RETRY_IF_INTERRUPTED(f) ({ \
+    ssize_t err; \
+    do { err = f; } while(err == -EAGAIN || err == -EINTR); \
+    err; \
+})
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
 #define LIME_SUPPORTS_TIMING
+#endif
+
+#ifdef CONFIG_ZLIB_DEFLATE
+#define LIME_SUPPORTS_DEFLATE
 #endif
 
 //structures

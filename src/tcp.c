@@ -46,11 +46,9 @@ static struct socket *accept;
 
 int setup_tcp() {
     struct sockaddr_in saddr;
-    int r;
+    int r, opt;
 
     mm_segment_t fs;
-
-    int buffsize = PAGE_SIZE;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0)
     r = sock_create_kern(&init_net, AF_INET, SOCK_STREAM, IPPROTO_TCP, &control);
@@ -79,7 +77,9 @@ int setup_tcp() {
     fs = get_fs();
     set_fs(KERNEL_DS);
 
-    r = sock_setsockopt(control, SOL_SOCKET, SO_SNDBUF, (void *) &buffsize, sizeof (int));
+    opt = 1;
+
+    r = kernel_setsockopt(control, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof (opt));
     if (r < 0) {
         DBG("Error setting socket options");
         return r;
@@ -87,18 +87,13 @@ int setup_tcp() {
 
     set_fs(fs);
 
-    if (r < 0) {
-        DBG("Error setting buffsize %d", r);
-        return r;
-    }
-
-    r = control->ops->bind(control,(struct sockaddr*) &saddr,sizeof(saddr));
+    r = kernel_bind(control,(struct sockaddr*) &saddr,sizeof(saddr));
     if (r < 0) {
         DBG("Error binding control socket");
         return r;
     }
 
-    r = control->ops->listen(control,1);
+    r = kernel_listen(control,1);
     if (r) {
         DBG("Error listening on socket");
         return r;
@@ -117,11 +112,7 @@ int setup_tcp() {
         return r;
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
-    r = accept->ops->accept(control,accept,0,true);
-#else
-    r = accept->ops->accept(control,accept,0);
-#endif
+    r = kernel_accept(control, &accept, 0);
 
     if (r < 0) {
         DBG("Error accepting socket");
@@ -132,15 +123,15 @@ int setup_tcp() {
 }
 
 void cleanup_tcp() {
-    if (accept && accept->ops) {
-        accept->ops->shutdown(accept, 0);
-        accept->ops->release(accept);
+    if (accept) {
+        kernel_sock_shutdown(accept, SHUT_RDWR);
+        sock_release(accept);
         accept = NULL;
     }
 
-    if (control && control->ops) {
-        control->ops->shutdown(control, 0);
-        control->ops->release(control);
+    if (control) {
+        kernel_sock_shutdown(control, SHUT_RDWR);
+        sock_release(control);
         control = NULL;
     }
 }
