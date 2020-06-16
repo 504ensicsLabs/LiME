@@ -173,7 +173,7 @@ static int init() {
 
     for (p = iomem_resource.child; p ; p = p->sibling) {
 
-        if (strcmp(p->name, LIME_RAMSTR))
+        if (!p->name || strcmp(p->name, LIME_RAMSTR))
             continue;
 
         if (mode == LIME_MODE_LIME && write_lime_header(p) < 0) {
