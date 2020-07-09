@@ -77,6 +77,9 @@ int setup_tcp() {
     fs = get_fs();
     set_fs(KERNEL_DS);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,8,0)
+    sock_set_reuseaddr(control->sk);
+#else
     opt = 1;
 
     r = kernel_setsockopt(control, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof (opt));
@@ -84,6 +87,7 @@ int setup_tcp() {
         DBG("Error setting socket options");
         return r;
     }
+#endif
 
     set_fs(fs);
 
