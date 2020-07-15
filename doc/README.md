@@ -116,7 +116,7 @@ Memory acquisition over the TCP tunnel is then a two-part process.  First, the t
 In the adb root shell, we install our kernel module using the insmod command.  To instruct the module to dump memory via TCP, we set the path parameter to “tcp”, followed by a colon and then the port number that adb is forwarding.  On our host computer, we connect to this port with netcat and redirect output to a file.  We also select the “lime” formatting option.  When the acquisition process is complete, LiME will terminate the TCP connection.
 The following command loads the kernel module via adb on the target Android device:
 ```
-insmod /sdcard/lime.ko “path=tcp:4444 format=lime”
+insmod /sdcard/lime.ko "path=tcp:4444 format=lime"
 ```
 
 On the host, the following command captures the memory dump via TCP port 444 to the file “ram.lime”:
@@ -133,7 +133,7 @@ Fortunately, imaging the SD card on an Android device that will be subjected to 
 
 With USB Storage mode deactivated, we copy the LiME kernel module to the device using the same steps described in the last section.  When installing the module using insmod, we set the path parameter to /sdcard/ram.lime to specify the file in which to write the memory dump.  We also select the “lime” format option:
 ```
-insmod /sdcard/lime.ko “path=/sdcard/ram.lime format=lime”
+insmod /sdcard/lime.ko "path=/sdcard/ram.lime format=lime"
 ```
 
 Once the acquisition process is complete, we can power down the phone, remove the SD card from the phone, and transfer the memory dump to the examination machine. If the phone cannot be powered down, adb can also be used to transfer the memory dump to the investigator's machine.
