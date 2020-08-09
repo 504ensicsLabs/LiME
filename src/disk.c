@@ -31,7 +31,7 @@ static int dio_write_test(char *path, int oflags)
 {
     int ok;
 
-    f = filp_open(path, oflags | O_DIRECT, 0444);
+    f = filp_open(path, oflags | O_DIRECT | O_SYNC, 0444);
     if (f && !IS_ERR(f)) {
         ok = write_vaddr_disk("DIO", 3) == 3;
         filp_close(f, NULL);
@@ -50,10 +50,10 @@ int setup_disk(char *path, int dio) {
     fs = get_fs();
     set_fs(KERNEL_DS);
 
-    oflags = O_WRONLY | O_CREAT | O_LARGEFILE | O_TRUNC | O_SYNC;
+    oflags = O_WRONLY | O_CREAT | O_LARGEFILE | O_TRUNC;
 
     if (dio && dio_write_test(path, oflags)) {
-        oflags |= O_DIRECT;
+        oflags |= O_DIRECT | O_SYNC;
     } else {
         DBG("Direct IO Disabled");
     }
