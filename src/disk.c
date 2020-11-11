@@ -83,27 +83,27 @@ void cleanup_disk(void) {
 }
 
 ssize_t write_vaddr_disk(void * v, size_t is) {
-    mm_segment_t fs;
 
     ssize_t s;
     loff_t pos;
-
-    fs = get_fs();
-    set_fs(KERNEL_DS);
 
     pos = f->f_pos;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
     s = kernel_write(f, v, is, &pos);
 #else
+    mm_segment_t fs;
+
+    fs = get_fs();
+    set_fs(KERNEL_DS);
+
     s = vfs_write(f, v, is, &pos);
+    set_fs(fs);
 #endif
 
     if (s == is) {
         f->f_pos = pos;
     }
-
-    set_fs(fs);
 
     return s;
 }
