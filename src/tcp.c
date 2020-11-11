@@ -48,8 +48,6 @@ int setup_tcp() {
     struct sockaddr_in saddr;
     int r, opt;
 
-    mm_segment_t fs;
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0)
     r = sock_create_kern(&init_net, AF_INET, SOCK_STREAM, IPPROTO_TCP, &control);
 #elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,5)
@@ -74,12 +72,14 @@ int setup_tcp() {
        }
 
 
-    fs = get_fs();
-    set_fs(KERNEL_DS);
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,8,0)
     sock_set_reuseaddr(control->sk);
 #else
+    mm_segment_t fs;
+
+    fs = get_fs();
+    set_fs(KERNEL_DS);
+
     opt = 1;
 
     r = kernel_setsockopt(control, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof (opt));
@@ -87,9 +87,9 @@ int setup_tcp() {
         DBG("Error setting socket options");
         return r;
     }
+    set_fs(fs);
 #endif
 
-    set_fs(fs);
 
     r = kernel_bind(control,(struct sockaddr*) &saddr,sizeof(saddr));
     if (r < 0) {
