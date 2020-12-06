@@ -46,7 +46,7 @@ int setup_disk(char *path, int dio) {
     int oflags;
     int err;
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5,10,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
     mm_segment_t fs;
 
     fs = get_fs();
@@ -65,7 +65,7 @@ int setup_disk(char *path, int dio) {
 
     if (!f || IS_ERR(f)) {
         DBG("Error opening file %ld", PTR_ERR(f));
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5,10,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
         set_fs(fs);
 #endif
         err = (f) ? PTR_ERR(f) : -EIO;
@@ -73,7 +73,7 @@ int setup_disk(char *path, int dio) {
         return err;
     }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5,10,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
     set_fs(fs);
 #endif
 
@@ -81,14 +81,14 @@ int setup_disk(char *path, int dio) {
 }
 
 void cleanup_disk(void) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5,10,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
     mm_segment_t fs;
 
     fs = get_fs();
     set_fs(KERNEL_DS);
 #endif
     if(f) filp_close(f, NULL);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5,10,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,10,0)
     set_fs(fs);
 #endif
 }
