@@ -43,12 +43,14 @@ static int dio_write_test(char *path, int oflags)
 }
 
 int setup_disk(char *path, int dio) {
-    mm_segment_t fs;
     int oflags;
     int err;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
+    mm_segment_t fs;
 
     fs = get_fs();
     set_fs(KERNEL_DS);
+#endif
 
     oflags = O_WRONLY | O_CREAT | O_LARGEFILE | O_TRUNC;
 
@@ -62,34 +64,43 @@ int setup_disk(char *path, int dio) {
 
     if (!f || IS_ERR(f)) {
         DBG("Error opening file %ld", PTR_ERR(f));
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
         set_fs(fs);
+#endif
         err = (f) ? PTR_ERR(f) : -EIO;
         f = NULL;
         return err;
     }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
     set_fs(fs);
+#endif
 
     return 0;
 }
 
 void cleanup_disk(void) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
     mm_segment_t fs;
 
     fs = get_fs();
     set_fs(KERNEL_DS);
+#endif
     if(f) filp_close(f, NULL);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
     set_fs(fs);
+#endif
 }
 
 ssize_t write_vaddr_disk(void * v, size_t is) {
-    mm_segment_t fs;
-
     ssize_t s;
     loff_t pos;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
+    mm_segment_t fs;
 
     fs = get_fs();
     set_fs(KERNEL_DS);
+#endif
 
     pos = f->f_pos;
 
@@ -103,7 +114,9 @@ ssize_t write_vaddr_disk(void * v, size_t is) {
         f->f_pos = pos;
     }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
     set_fs(fs);
+#endif
 
     return s;
 }
