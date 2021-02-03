@@ -288,6 +288,12 @@ static void write_range(struct resource * res) {
             DBG("Padding partial page: vaddr %p size: %lu", (void *) i, (unsigned long) is);
             write_padding(is);
         } else {
+#ifdef LIME_USE_KMAP_ATOMIC
+            v = kmap_atomic(p);
+            copy_page(vpage, v);
+            kunmap_atomic(v);
+            s = write_vaddr(vpage, is);
+#else
             v = kmap(p);
             /*
              * If we need to compute the digest or compress the output
@@ -300,6 +306,7 @@ static void write_range(struct resource * res) {
                 s = write_vaddr(v, is);
             }
             kunmap(p);
+#endif
 
             if (s < 0) {
                 DBG("Failed to write page: vaddr %p. Skipping Range...", v);
