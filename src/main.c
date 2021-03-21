@@ -290,11 +290,9 @@ static void write_range(struct resource * res) {
         } else {
 #ifdef LIME_USE_KMAP_ATOMIC
             v = kmap_atomic(p);
-            copy_page(vpage, v);
-            kunmap_atomic(v);
-            s = write_vaddr(vpage, is);
 #else
             v = kmap(p);
+#endif
             /*
              * If we need to compute the digest or compress the output
              * take a snapshot of the page. Otherwise save some cycles.
@@ -305,9 +303,11 @@ static void write_range(struct resource * res) {
             } else {
                 s = write_vaddr(v, is);
             }
+#ifdef LIME_USE_KMAP_ATOMIC
+            kunmap_atomic(v);
+#else
             kunmap(p);
 #endif
-
             if (s < 0) {
                 DBG("Failed to write page: vaddr %p. Skipping Range...", v);
                 break;
