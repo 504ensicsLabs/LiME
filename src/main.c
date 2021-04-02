@@ -85,7 +85,7 @@ module_param(localhostonly, int, S_IRUGO);
 module_param(digest, charp, S_IRUGO);
 
 #ifdef LIME_SUPPORTS_TIMING
-long timeout = 1000;
+long timeout = 0;
 module_param(timeout, long, S_IRUGO);
 #endif
 
