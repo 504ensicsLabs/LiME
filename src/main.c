@@ -280,7 +280,11 @@ static void write_range(struct resource * res) {
 #endif
         p = pfn_to_page((i) >> PAGE_SHIFT);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+        is = min((resource_size_t) PAGE_SIZE, (resource_size_t) (res->end - i + 1));
+#else
         is = min((size_t) PAGE_SIZE, (size_t) (res->end - i + 1));
+#endif
 
         if (is < PAGE_SIZE) {
             // We can't map partial pages and
