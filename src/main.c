@@ -272,6 +272,12 @@ static void write_range(struct resource * res) {
     ktime_t start,end;
 #endif
 
+#ifdef LIME_RISCV
+    riscv_pmp_region pmp_region;
+    pmp_region.start = 0;
+    pmp_region.end = 0;
+#endif
+
     DBG("Writing range %llx - %llx.", res->start, res->end);
 
     for (i = res->start; i <= res->end; i += is) {
@@ -292,6 +298,24 @@ static void write_range(struct resource * res) {
             v = kmap_atomic(p);
 #else
             v = kmap(p);
+#endif
+#ifdef LIME_RISCV
+        if (riscv_test_load_access(v) == RISCV_LOAD_ACCESS_FAULT) {
+          write_padding(is);
+          if (pmp_region.start == 0) {
+            pmp_region.start = i;
+            pmp_region.end = i;
+          } else {
+            pmp_region.end = i;
+          }
+          continue;
+        } else if (pmp_region.start != 0) {
+          DBG("Found possible read-protected pmp region at: start = 0x%llx, end = 0x%llx",
+              pmp_region.start,
+              pmp_region.end);
+          pmp_region.start = 0;
+          pmp_region.end = 0;
+        }
 #endif
             /*
              * If we need to compute the digest or compress the output
