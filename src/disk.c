@@ -103,6 +103,9 @@ ssize_t write_vaddr_disk(void * v, size_t is) {
     s = vfs_write(f, v, is, &pos);
     set_fs(fs);
 #else
+#ifdef CONFIG_SMP
+    preempt_enable(); /* Scheduling while atomic bug temporary fix */
+#endif
     s = kernel_write(f, v, is, &pos);
 #endif
 
