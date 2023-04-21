@@ -301,6 +301,9 @@ static void write_range(struct resource * res) {
              * If we need to compute the digest or compress the output
              * take a snapshot of the page. Otherwise save some cycles.
              */
+#ifdef LIME_USE_KMAP_ATOMIC
+            preempt_enable();
+#endif
             if (no_overlap) {
                 copy_page(vpage, v);
                 s = write_vaddr(vpage, is);
@@ -308,6 +311,7 @@ static void write_range(struct resource * res) {
                 s = write_vaddr(v, is);
             }
 #ifdef LIME_USE_KMAP_ATOMIC
+            preempt_disable();
             kunmap_atomic(v);
 #else
             kunmap(p);
