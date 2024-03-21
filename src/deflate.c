@@ -97,3 +97,5 @@ ssize_t deflate(const void *in, size_t inlen)
 }
 
 #endif
+
+MODULE_LICENSE("GPL");
