@@ -20,7 +20,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 
-obj-m := lime.o
+obj-$(CONFIG_LIME) := lime.o
 lime-objs := tcp.o disk.o main.o hash.o deflate.o
 
 KVER ?= $(shell uname -r)

@@ -1,0 +1,9 @@
+menu "Linux Memory Extractor"
+
+config LIME
+    bool "Enable LiME support"
+    default m
+    help
+        This option enables LiME as a module.
+
+endmenu
