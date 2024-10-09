@@ -121,7 +121,7 @@ int init_module (void)
     DBG("  COMPRESS: %u", compress);
 #endif
 
-    if (!strcmp(format, "raw")) mode = LIME_MODE_RAW;
+    if (!strcmp(format, "expert")) mode = LIME_MODE_RAW;
     else if (!strcmp(format, "lime")) mode = LIME_MODE_LIME;
     else if (!strcmp(format, "padded")) mode = LIME_MODE_PADDED;
     else {
