@@ -22,14 +22,14 @@ Detailed documentation on LiME's usage and internals can be found in the "doc" d
 
 LiME utilizes the insmod command to load the module, passing required arguments for its execution.
 ```
-insmod ./lime.ko "path=<outfile | tcp:<port>> format=<expert|padded|lime> [digest=<digest>] [dio=<0|1>]"
+insmod ./lime.ko "path=<outfile | tcp:<port>> format=<raw|padded|lime> [digest=<digest>] [dio=<0|1>]"
 
 path (required):     outfile ~ name of file to write to on local system (SD Card)
                      tcp:port ~ network port to communicate over
         
 format (required):   padded ~ pads all non-System RAM ranges with 0s
                      lime ~ each range prepended with fixed-size header containing address space info
-                     expert ~ concatenates all System RAM ranges (warning : original position of dumped memory is likely to be lost therefore making analysis in most forensics tools impossible. This format is not recommended except for advanced users)
+                     raw ~ concatenates all System RAM ranges (warning : original position of dumped memory is likely to be lost therefore making analysis in most forensics tools impossible. This format is not recommended except for advanced users)
 
 digest (optional):   Hash the RAM and provide a .digest file with the sum.
                      Supports kernel version 2.6.11 and up. See below for

@@ -93,7 +93,7 @@ NOTE: There is a bug in the insmod utility on some Android devices.  Multiple ke
 path          Either a filename to write on the local system (SD Card) or tcp:<port>
 format        padded: Pads all non-System RAM ranges with 0s, starting from physical address 0.
               lime: Each range is prepended with a fixed-sized header which contains address space information.
-              expert: Simply concatenates all System RAM ranges. Most memory analysis tools do not support this format, as memory position information is lost (unless System RAM is in one continuous range starting from physical address 0)
+              raw: Simply concatenates all System RAM ranges. Most memory analysis tools do not support this format, as memory position information is lost (unless System RAM is in one continuous range starting from physical address 0)
 dio           Optional. 1 to enable Direct IO attempt, 0 to disable (default)
 localhostonly Optional. 1 restricts the tcp to only listen on localhost, 0 binds on all interfaces (default)
 timeout       Optional. If it takes longer than the specified  timeout (in milliseconds) to read/write a page
