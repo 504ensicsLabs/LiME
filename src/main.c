@@ -94,7 +94,7 @@ int compress = 0;
 module_param(compress, int, S_IRUGO);
 #endif
 
-int init_module (void)
+int lime_init_module (void)
 {
     if(!path) {
         DBG("No path parameter specified");
@@ -394,8 +394,11 @@ static void cleanup(void) {
     return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
 }
 
-void cleanup_module(void) {
+void lime_cleanup_module(void) {
 
 }
 
 MODULE_LICENSE("GPL");
+
+module_init(lime_init_module);
+module_exit(lime_cleanup_module);
