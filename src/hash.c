@@ -98,7 +98,7 @@ int ldigest_update(void *v, size_t is) {
     int ret;
     struct scatterlist sg;
 
-    if (likely(virt_addr_valid((unsigned long) v))) {
+    if (likely(virt_addr_valid(v))) {
         sg_init_one(&sg, (u8 *) v, is);
     } else {
         int nbytes = is;
