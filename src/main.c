@@ -94,7 +94,7 @@ int compress = 0;
 module_param(compress, int, S_IRUGO);
 #endif
 
-static int __init lime__module (void)
+static int __init lime_init_module (void)
 {
     if(!path) {
         DBG("No path parameter specified");
