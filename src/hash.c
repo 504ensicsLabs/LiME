@@ -24,6 +24,13 @@
 
 #include "lime.h"
 
+
+int ldigest_init(void);
+int ldigest_update(void *v, size_t is);
+int ldigest_final(void);
+int ldigest_write_tcp(void);
+void ldigest_clean(void);
+
 // External
 extern ssize_t write_vaddr_tcp(void *, size_t);
 extern int setup_tcp(void);
@@ -32,6 +39,7 @@ extern void cleanup_tcp(void);
 extern ssize_t write_vaddr_disk(void *, size_t);
 extern int setup_disk(char *, int);
 extern void cleanup_disk(void);
+int ldigest_write_disk(void);
 
 static u8 *output;
 static int digestsize;

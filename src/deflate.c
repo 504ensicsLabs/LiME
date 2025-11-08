@@ -25,6 +25,9 @@
 #include <linux/zlib.h>
 
 #include "lime.h"
+extern int deflate_begin_stream(void *out, size_t outlen);
+int deflate_end_stream(void);
+ssize_t deflate(const void *in, size_t inlen);
 
 /* Balance high compression level and memory footprint. */
 #define DEFLATE_WBITS       11  /* 8KB */

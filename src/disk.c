@@ -23,7 +23,9 @@
 
 #include "lime.h"
 
+void cleanup_disk(void);
 ssize_t write_vaddr_disk(void *, size_t);
+int setup_disk(char *path, int dio);
 
 static struct file * f = NULL;
 
