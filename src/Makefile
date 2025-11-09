@@ -23,6 +23,10 @@
 obj-m := lime.o
 lime-objs := tcp.o disk.o main.o hash.o deflate.o
 
+ifeq ($(ARCH), riscv)
+	kcflags := "-DLIME_RISCV"
+endif
+
 KVER ?= $(shell uname -r)
 
 KDIR ?= /lib/modules/$(KVER)/build
@@ -32,13 +36,13 @@ PWD := $(shell pwd)
 .PHONY: modules modules_install clean distclean debug
 
 default:
-	$(MAKE) -C $(KDIR) M="$(PWD)" modules
-	strip --strip-unneeded lime.ko
+	KCFLAGS=$(kcflags) $(MAKE) -C $(KDIR) M="$(PWD)" modules
+	$(CROSS_COMPILE)strip --strip-unneeded lime.ko
 	mv lime.ko lime-$(KVER).ko
 
 debug:
-	KCFLAGS="-DLIME_DEBUG" $(MAKE) CONFIG_DEBUG_SG=y -C $(KDIR) M="$(PWD)" modules
-	strip --strip-unneeded lime.ko
+	KCFLAGS="-DLIME_DEBUG $(kcflags)" $(MAKE) CONFIG_DEBUG_SG=y -C $(KDIR) M="$(PWD)" modules
+	$(CROSS_COMPILE)strip --strip-unneeded lime.ko
 	mv lime.ko lime-$(KVER).ko
 
 symbols:
@@ -47,7 +51,7 @@ symbols:
 
 modules:    main.c disk.c tcp.c hash.c lime.h
 	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" $@
-	strip --strip-unneeded lime.ko
+	$(CROSS_COMPILE)strip --strip-unneeded lime.ko
 
 modules_install:    modules
 	$(MAKE) -C $(KDIR) M="$(PWD)" $@

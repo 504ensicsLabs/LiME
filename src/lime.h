@@ -84,6 +84,32 @@
 #define LIME_SUPPORTS_DEFLATE
 #endif
 
+#ifdef LIME_RISCV
+#define RISCV_LOAD_ACCESS_FAULT 5
+
+#define riscv_test_load_access(v_addr)                                         \
+  ({                                                                           \
+    int __v = 0xdeadbeef;                                                      \
+    __asm__ __volatile__("1:\n"                                                \
+                         "ld t0, 0(%1)\n"                                      \
+                         "2:\n"                                                \
+                         ".section .fixup,\"ax\"\n"                            \
+                         "3:\n"                                                \
+                         "csrr %0, scause\n"                                   \
+                         "j 2b\n"                                              \
+                         ".previous\n" _ASM_EXTABLE(1b, 3b)                    \
+                         : "=r"(__v)                                           \
+                         : "r"(v_addr)                                         \
+                         : "memory");                                          \
+    __v;                                                                       \
+  })
+
+typedef struct {
+  unsigned long long start;
+  unsigned long long end;
+} riscv_pmp_region;
+#endif
+
 //structures
 
 typedef struct {
