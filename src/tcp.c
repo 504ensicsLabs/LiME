@@ -83,7 +83,11 @@ int setup_tcp() {
     sock_set_reuseaddr(control->sk);
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,19,6)
     r = kernel_bind(control,(struct sockaddr*) &saddr,sizeof(saddr));
+#else
+    r = kernel_bind(control,(struct sockaddr_unsized *) &saddr,sizeof(saddr));
+#endif
     if (r < 0) {
         DBG("Error binding control socket");
         return r;
