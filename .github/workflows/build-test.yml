@@ -13,6 +13,13 @@
 #
 # ┌─────────────────────────────────────────────────────────────────────────┐
 # │ Complete version boundary map (from source #if directives)             │
+# │                                                                        │
+# │ Cross-referenced against kernel changelogs for all APIs LiME uses:     │
+# │   filp_open, filp_close, kernel_write, kernel_accept, kernel_listen,   │
+# │   kernel_sendmsg, kernel_sock_shutdown, sock_release, crypto_ahash,    │
+# │   kmap_atomic, pfn_to_page, iomem_resource, copy_page, vmalloc_to_    │
+# │   page, virt_addr_valid, sg_init_one, module_param, printk, zlib.      │
+# │ All verified stable except where version checks already exist.         │
 # ├──────────┬────────┬────────────────────────────────────────────────────┤
 # │ Version  │ Op     │ What changes                                      │
 # ├──────────┼────────┼────────────────────────────────────────────────────┤
@@ -25,11 +32,25 @@
 # │ 4.2.0    │ >=     │ sock_create_kern gains &init_net param (tcp.c)     │
 # │ 4.6.0    │ >=     │ crypto_hash → crypto_ahash API (hash.c)            │
 # │ 4.14.0   │ <      │ vfs_write+set_fs → kernel_write (disk.c)          │
+# │          │        │   set_fs removed: x86 in 5.10, all archs by 5.18  │
 # │ 5.8.0    │ <      │ kernel_setsockopt → sock_set_reuseaddr (tcp.c)    │
+# │          │        │   kernel_setsockopt fully removed in 5.9           │
 # │ 6.19.0   │ <      │ sockaddr* → sockaddr_unsized* (tcp.c)             │
 # └──────────┴────────┴────────────────────────────────────────────────────┘
 # † = 2.6.x boundaries cannot be tested in CI (modern GCC can't build
 #     those kernel trees). All 2.6.x code paths have been stable for years.
+#
+# Non-version-gated kernel changes affecting LiME (no #if needed):
+#   5.11  — kmap_atomic() deprecated; kmap_local_page() introduced.
+#           Still compiles via compat wrapper. Migration recommended.
+#   5.15  — printk() became a macro wrapping _printk(). Transparent.
+#   5.18  — IBT (Indirect Branch Tracking) on x86. Breaks modules using
+#           init_module()/cleanup_module() magic names (fixed by PR #127).
+#   6.2   — __GFP_ATOMIC removed; GFP_ATOMIC macro redefined. Transparent.
+#   6.4   — crypto_completion_t callback changed to void*. LiME passes
+#           NULL so unaffected.
+#   6.15  — init_module()/cleanup_module() formally deprecated with hard
+#           build error via objtool. LiME already uses module_init/exit.
 #
 # Kernel config dependencies:
 #   Explicit:  CONFIG_ZLIB_DEFLATE (gates LIME_SUPPORTS_DEFLATE / deflate.c)
@@ -38,9 +59,11 @@
 #              CONFIG_HIGHMEM (lime.h includes linux/highmem.h)
 #              CONFIG_MODULES (it's a loadable module)
 #
-# Future risk: kmap_atomic() deprecated since 5.11 in favor of
-#   kmap_local_page(). Still works via compat wrappers but could break
-#   if the kernel removes them.
+# Known functional gaps (not testable in CI):
+#   - iomem_resource traversal only walks first-level children. Since 5.12,
+#     virtio-mem/dax/kmem can nest System RAM deeper in the resource tree.
+#   - kmap_atomic() should be migrated to kmap_local_page() for >= 5.11.
+#     Would also eliminate the manual preempt_enable/disable workaround.
 
 name: Build Test
 
@@ -104,10 +127,15 @@ jobs:
           - { version: "6.6.1",   major: "6" }
           - { version: "6.12.1",  major: "6" }
 
+          # ── Recent kernels with non-version-gated changes ───────────
+          # 6.15: hard build error for init_module() magic name (PR #127)
+          # 6.19: kernel_bind() sockaddr_unsized change (PR #136)
+          - { version: "6.15.1",  major: "6" }
+
         config_variant: [default, no-zlib]
 
         # Test config variants only on boundary versions to limit job count.
-        # LTS versions get only default config.
+        # LTS versions and recent kernels get only default config.
         exclude:
           - kernel: { version: "4.4.1",   major: "4" }
             config_variant: no-zlib
@@ -126,6 +154,8 @@ jobs:
           - kernel: { version: "6.6.1",   major: "6" }
             config_variant: no-zlib
           - kernel: { version: "6.12.1",  major: "6" }
+            config_variant: no-zlib
+          - kernel: { version: "6.15.1",  major: "6" }
             config_variant: no-zlib
 
     name: "${{ matrix.kernel.version }} (${{ matrix.config_variant }})"
