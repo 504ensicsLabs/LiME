@@ -11,16 +11,36 @@
 #   3. `make modules_prepare` (fast — sets up headers/scripts without full build)
 #   4. Build LiME as an out-of-tree module
 #
-# Version boundary map (from source code #if directives):
-#   4.2.0  — sock_create_kern() gains net namespace parameter
-#   4.6.0  — crypto_ahash API replaces crypto_hash
-#   4.14.0 — kernel_write() replaces vfs_write()+set_fs()
-#   5.8.0  — sock_set_reuseaddr() replaces kernel_setsockopt()
-#   6.19.0 — kernel_bind() signature change (sockaddr_unsized)
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Complete version boundary map (from source #if directives)             │
+# ├──────────┬────────┬────────────────────────────────────────────────────┤
+# │ Version  │ Op     │ What changes                                      │
+# ├──────────┼────────┼────────────────────────────────────────────────────┤
+# │ 2.6.5  † │ >      │ sock_create → sock_create_kern (tcp.c)            │
+# │ 2.6.11 † │ >=     │ Crypto support begins: crypto_tfm API (hash.c)    │
+# │ 2.6.18 † │ >=     │ __PTRDIFF_TYPE__ → resource_size_t (main.c)       │
+# │ 2.6.19 † │ >=     │ crypto_tfm → crypto_hash API (hash.c)             │
+# │ 2.6.35 † │ >=     │ LIME_SUPPORTS_TIMING: ktime functions (lime.h)    │
+# │ 2.6.37 † │ >=     │ LIME_USE_KMAP_ATOMIC: kmap_atomic (lime.h)        │
+# │ 4.2.0    │ >=     │ sock_create_kern gains &init_net param (tcp.c)     │
+# │ 4.6.0    │ >=     │ crypto_hash → crypto_ahash API (hash.c)            │
+# │ 4.14.0   │ <      │ vfs_write+set_fs → kernel_write (disk.c)          │
+# │ 5.8.0    │ <      │ kernel_setsockopt → sock_set_reuseaddr (tcp.c)    │
+# │ 6.19.0   │ <      │ sockaddr* → sockaddr_unsized* (tcp.c)             │
+# └──────────┴────────┴────────────────────────────────────────────────────┘
+# † = 2.6.x boundaries cannot be tested in CI (modern GCC can't build
+#     those kernel trees). All 2.6.x code paths have been stable for years.
 #
-# Config variants tested:
-#   default     — defconfig (includes CONFIG_ZLIB_DEFLATE, crypto, etc.)
-#   no-zlib     — CONFIG_ZLIB_DEFLATE disabled (tests non-deflate code paths)
+# Kernel config dependencies:
+#   Explicit:  CONFIG_ZLIB_DEFLATE (gates LIME_SUPPORTS_DEFLATE / deflate.c)
+#   Implicit:  CONFIG_NET, CONFIG_INET (lime.h includes net/sock.h, net/tcp.h)
+#              CONFIG_CRYPTO (hash.c uses crypto APIs for kernels >= 2.6.11)
+#              CONFIG_HIGHMEM (lime.h includes linux/highmem.h)
+#              CONFIG_MODULES (it's a loadable module)
+#
+# Future risk: kmap_atomic() deprecated since 5.11 in favor of
+#   kmap_local_page(). Still works via compat wrappers but could break
+#   if the kernel removes them.
 
 name: Build Test
 
@@ -40,20 +60,42 @@ jobs:
       fail-fast: false
       matrix:
         kernel:
-          # --- Version boundary coverage ---
-          # Before sock_create_kern(&init_net, ...) added in 4.2
+          # ── Version boundary tests ──────────────────────────────────
+          # Each pair tests one side of a #if boundary.
+
+          # Before sock_create_kern(&init_net, ...) [added in 4.2]
+          # Also covers: crypto_hash API (>= 2.6.19, < 4.6)
+          #              set_fs/vfs_write path (< 4.14)
+          #              resource_size_t (>= 2.6.18)
+          #              kmap_atomic (>= 2.6.37)
+          #              timing support (>= 2.6.35)
           - { version: "4.1.1",  major: "4" }
-          # After sock_create_kern change; before crypto_ahash (4.6)
+
+          # After sock_create_kern change; before crypto_ahash [4.6]
+          # Tests the crypto_hash path one more time
           - { version: "4.5.1",  major: "4" }
-          # Before kernel_write() (4.14), last version using vfs_write+set_fs
+
+          # First kernel with crypto_ahash API (>= 4.6)
+          # Still uses vfs_write+set_fs (< 4.14)
+          - { version: "4.6.1",  major: "4" }
+
+          # Last kernel before kernel_write() [4.14]
+          # Last to use vfs_write + set_fs + mm_segment_t
           - { version: "4.13.1", major: "4" }
-          # Before sock_set_reuseaddr() (5.8)
+
+          # First kernel with kernel_write() (>= 4.14)
+          - { version: "4.14.1", major: "4" }
+
+          # Last kernel before sock_set_reuseaddr() [5.8]
+          # Still uses kernel_setsockopt()
           - { version: "5.7.1",  major: "5" }
 
-          # --- LTS kernel coverage ---
+          # First kernel with sock_set_reuseaddr (>= 5.8)
+          - { version: "5.8.1",  major: "5" }
+
+          # ── LTS kernel coverage (real-world distro kernels) ─────────
           - { version: "4.4.1",   major: "4" }
           - { version: "4.9.1",   major: "4" }
-          - { version: "4.14.1",  major: "4" }
           - { version: "4.19.1",  major: "4" }
           - { version: "5.4.1",   major: "5" }
           - { version: "5.10.1",  major: "5" }
@@ -64,14 +106,12 @@ jobs:
 
         config_variant: [default, no-zlib]
 
-        # Only test config variants on a subset to reduce total jobs.
-        # Boundary versions get both variants; LTS versions only get default.
+        # Test config variants only on boundary versions to limit job count.
+        # LTS versions get only default config.
         exclude:
           - kernel: { version: "4.4.1",   major: "4" }
             config_variant: no-zlib
           - kernel: { version: "4.9.1",   major: "4" }
-            config_variant: no-zlib
-          - kernel: { version: "4.14.1",  major: "4" }
             config_variant: no-zlib
           - kernel: { version: "4.19.1",  major: "4" }
             config_variant: no-zlib
@@ -122,17 +162,21 @@ jobs:
         if: steps.kernel-cache.outputs.cache-hit != 'true'
         working-directory: ~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
         run: |
-          # Start with defconfig for a reasonable baseline
+          # Start with defconfig for a reasonable baseline.
+          # defconfig enables CONFIG_NET, CONFIG_INET, CONFIG_CRYPTO,
+          # CONFIG_MODULES, CONFIG_HIGHMEM (on x86), and CONFIG_ZLIB_DEFLATE.
           make defconfig
 
           # Apply config variant
-          if [ "${{ matrix.config_variant }}" = "no-zlib" ]; then
-            ./scripts/config --disable CONFIG_ZLIB_DEFLATE
-            make olddefconfig
-          fi
+          case "${{ matrix.config_variant }}" in
+            no-zlib)
+              ./scripts/config --disable CONFIG_ZLIB_DEFLATE
+              make olddefconfig
+              ;;
+          esac
 
-          # Prepare headers and scripts for out-of-tree module builds
-          # This is much faster than a full kernel build (~30-60s vs ~30min)
+          # Prepare headers and scripts for out-of-tree module builds.
+          # This is much faster than a full kernel build (~30-60s vs ~30min).
           make modules_prepare
 
       - name: Build LiME module
@@ -150,15 +194,33 @@ jobs:
           KDIR=~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
           # Clean previous build artifacts
           make -C "$KDIR" M="$(pwd)" clean
-          # Build with debug flags to test LIME_DEBUG code paths
-          KCFLAGS="-DLIME_DEBUG" make CONFIG_DEBUG_SG=y -C "$KDIR" M="$(pwd)" modules
+          # Build with LIME_DEBUG to verify all DBG() format strings compile
+          KCFLAGS="-DLIME_DEBUG" make -C "$KDIR" M="$(pwd)" modules
           echo "Debug build successful"
 
   # Test against the runner's own kernel headers as a sanity check.
   # This represents the "install headers, build, done" user experience.
   build-runner-kernel:
     runs-on: ubuntu-22.04
-    name: "Runner kernel (sanity check)"
+    name: "Runner kernel (sanity)"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kernel headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq linux-headers-$(uname -r)
+      - name: Build LiME
+        working-directory: src
+        run: |
+          make
+          echo "Built lime-$(uname -r).ko successfully"
+          ls -la lime-*.ko
+
+  # Also test on ubuntu-24.04 to cover newer GCC / stricter compiler defaults.
+  # This catches issues like OL9's -Werror=missing-prototypes (issue #134).
+  build-runner-kernel-24:
+    runs-on: ubuntu-24.04
+    name: "Runner kernel (ubuntu-24.04)"
     steps:
       - uses: actions/checkout@v4
       - name: Install kernel headers
@@ -175,13 +237,14 @@ jobs:
   # Summary job for branch protection rules
   build-status:
     runs-on: ubuntu-latest
-    needs: [build, build-runner-kernel]
+    needs: [build, build-runner-kernel, build-runner-kernel-24]
     if: always()
     steps:
       - name: Check build results
         run: |
           if [ "${{ needs.build.result }}" = "failure" ] || \
-             [ "${{ needs.build-runner-kernel.result }}" = "failure" ]; then
+             [ "${{ needs.build-runner-kernel.result }}" = "failure" ] || \
+             [ "${{ needs.build-runner-kernel-24.result }}" = "failure" ]; then
             echo "One or more build jobs failed"
             exit 1
           fi
