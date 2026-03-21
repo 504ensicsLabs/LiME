@@ -1,0 +1,188 @@
+# CI build-test matrix for LiME kernel module
+#
+# Strategy: Build LiME against a wide range of kernel versions to catch API
+# breakage early. Each version in the matrix is chosen to exercise a specific
+# LINUX_VERSION_CODE boundary in the source, plus all active LTS kernels for
+# real-world coverage.
+#
+# How it works:
+#   1. Download kernel source tarball from cdn.kernel.org (cached)
+#   2. Configure with defconfig + optional config tweaks
+#   3. `make modules_prepare` (fast — sets up headers/scripts without full build)
+#   4. Build LiME as an out-of-tree module
+#
+# Version boundary map (from source code #if directives):
+#   4.2.0  — sock_create_kern() gains net namespace parameter
+#   4.6.0  — crypto_ahash API replaces crypto_hash
+#   4.14.0 — kernel_write() replaces vfs_write()+set_fs()
+#   5.8.0  — sock_set_reuseaddr() replaces kernel_setsockopt()
+#   6.19.0 — kernel_bind() signature change (sockaddr_unsized)
+#
+# Config variants tested:
+#   default     — defconfig (includes CONFIG_ZLIB_DEFLATE, crypto, etc.)
+#   no-zlib     — CONFIG_ZLIB_DEFLATE disabled (tests non-deflate code paths)
+
+name: Build Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # Weekly Monday 6am UTC — catches breakage from new kernel releases
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        kernel:
+          # --- Version boundary coverage ---
+          # Before sock_create_kern(&init_net, ...) added in 4.2
+          - { version: "4.1.1",  major: "4" }
+          # After sock_create_kern change; before crypto_ahash (4.6)
+          - { version: "4.5.1",  major: "4" }
+          # Before kernel_write() (4.14), last version using vfs_write+set_fs
+          - { version: "4.13.1", major: "4" }
+          # Before sock_set_reuseaddr() (5.8)
+          - { version: "5.7.1",  major: "5" }
+
+          # --- LTS kernel coverage ---
+          - { version: "4.4.1",   major: "4" }
+          - { version: "4.9.1",   major: "4" }
+          - { version: "4.14.1",  major: "4" }
+          - { version: "4.19.1",  major: "4" }
+          - { version: "5.4.1",   major: "5" }
+          - { version: "5.10.1",  major: "5" }
+          - { version: "5.15.1",  major: "5" }
+          - { version: "6.1.1",   major: "6" }
+          - { version: "6.6.1",   major: "6" }
+          - { version: "6.12.1",  major: "6" }
+
+        config_variant: [default, no-zlib]
+
+        # Only test config variants on a subset to reduce total jobs.
+        # Boundary versions get both variants; LTS versions only get default.
+        exclude:
+          - kernel: { version: "4.4.1",   major: "4" }
+            config_variant: no-zlib
+          - kernel: { version: "4.9.1",   major: "4" }
+            config_variant: no-zlib
+          - kernel: { version: "4.14.1",  major: "4" }
+            config_variant: no-zlib
+          - kernel: { version: "4.19.1",  major: "4" }
+            config_variant: no-zlib
+          - kernel: { version: "5.4.1",   major: "5" }
+            config_variant: no-zlib
+          - kernel: { version: "5.10.1",  major: "5" }
+            config_variant: no-zlib
+          - kernel: { version: "5.15.1",  major: "5" }
+            config_variant: no-zlib
+          - kernel: { version: "6.1.1",   major: "6" }
+            config_variant: no-zlib
+          - kernel: { version: "6.6.1",   major: "6" }
+            config_variant: no-zlib
+          - kernel: { version: "6.12.1",  major: "6" }
+            config_variant: no-zlib
+
+    name: "${{ matrix.kernel.version }} (${{ matrix.config_variant }})"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential bc flex bison \
+            libelf-dev libssl-dev
+
+      - name: Cache prepared kernel tree
+        uses: actions/cache@v4
+        id: kernel-cache
+        with:
+          path: ~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
+          key: kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}-v1
+
+      - name: Download kernel source
+        if: steps.kernel-cache.outputs.cache-hit != 'true'
+        run: |
+          url="https://cdn.kernel.org/pub/linux/kernel/v${{ matrix.kernel.major }}.x/linux-${{ matrix.kernel.version }}.tar.xz"
+          echo "Downloading $url"
+          wget -q "$url" -O linux.tar.xz
+          mkdir -p ~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
+          tar xf linux.tar.xz --strip-components=1 \
+            -C ~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
+          rm linux.tar.xz
+
+      - name: Prepare kernel build tree
+        if: steps.kernel-cache.outputs.cache-hit != 'true'
+        working-directory: ~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
+        run: |
+          # Start with defconfig for a reasonable baseline
+          make defconfig
+
+          # Apply config variant
+          if [ "${{ matrix.config_variant }}" = "no-zlib" ]; then
+            ./scripts/config --disable CONFIG_ZLIB_DEFLATE
+            make olddefconfig
+          fi
+
+          # Prepare headers and scripts for out-of-tree module builds
+          # This is much faster than a full kernel build (~30-60s vs ~30min)
+          make modules_prepare
+
+      - name: Build LiME module
+        working-directory: src
+        run: |
+          KDIR=~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
+          echo "Building LiME against kernel ${{ matrix.kernel.version }} (${{ matrix.config_variant }})"
+          make -C "$KDIR" M="$(pwd)" modules
+          echo "Build successful"
+          ls -la lime.ko
+
+      - name: Build LiME module (debug)
+        working-directory: src
+        run: |
+          KDIR=~/kernel-${{ matrix.kernel.version }}-${{ matrix.config_variant }}
+          # Clean previous build artifacts
+          make -C "$KDIR" M="$(pwd)" clean
+          # Build with debug flags to test LIME_DEBUG code paths
+          KCFLAGS="-DLIME_DEBUG" make CONFIG_DEBUG_SG=y -C "$KDIR" M="$(pwd)" modules
+          echo "Debug build successful"
+
+  # Test against the runner's own kernel headers as a sanity check.
+  # This represents the "install headers, build, done" user experience.
+  build-runner-kernel:
+    runs-on: ubuntu-22.04
+    name: "Runner kernel (sanity check)"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kernel headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq linux-headers-$(uname -r)
+      - name: Build LiME
+        working-directory: src
+        run: |
+          make
+          echo "Built lime-$(uname -r).ko successfully"
+          ls -la lime-*.ko
+
+  # Summary job for branch protection rules
+  build-status:
+    runs-on: ubuntu-latest
+    needs: [build, build-runner-kernel]
+    if: always()
+    steps:
+      - name: Check build results
+        run: |
+          if [ "${{ needs.build.result }}" = "failure" ] || \
+             [ "${{ needs.build-runner-kernel.result }}" = "failure" ]; then
+            echo "One or more build jobs failed"
+            exit 1
+          fi
+          echo "All builds passed"
