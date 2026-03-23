@@ -84,6 +84,31 @@
 #define LIME_SUPPORTS_DEFLATE
 #endif
 
+// tcp.c
+extern ssize_t write_vaddr_tcp(void *, size_t);
+extern int setup_tcp(void);
+extern void cleanup_tcp(void);
+
+// disk.c
+extern ssize_t write_vaddr_disk(void *, size_t);
+extern int setup_disk(char *, int);
+extern void cleanup_disk(void);
+
+// hash.c
+extern int ldigest_init(void);
+extern int ldigest_update(void *, size_t);
+extern int ldigest_final(void);
+extern int ldigest_write_tcp(void);
+extern int ldigest_write_disk(void);
+extern void ldigest_clean(void);
+
+// deflate.c
+#ifdef LIME_SUPPORTS_DEFLATE
+extern int deflate_begin_stream(void *, size_t);
+extern int deflate_end_stream(void);
+extern ssize_t deflate(const void *, size_t);
+#endif
+
 //structures
 
 typedef struct {

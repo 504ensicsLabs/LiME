@@ -23,10 +23,6 @@
 
 #include "lime.h"
 
-void cleanup_disk(void);
-ssize_t write_vaddr_disk(void *, size_t);
-int setup_disk(char *path, int dio);
-
 static struct file * f = NULL;
 
 static int dio_write_test(char *path, int oflags)
@@ -94,12 +90,13 @@ void cleanup_disk(void) {
 ssize_t write_vaddr_disk(void * v, size_t is) {
     ssize_t s;
     loff_t pos;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+    mm_segment_t fs;
+#endif
 
     pos = f->f_pos;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-    mm_segment_t fs;
-
     fs = get_fs();
     set_fs(KERNEL_DS);
     s = vfs_write(f, v, is, &pos);

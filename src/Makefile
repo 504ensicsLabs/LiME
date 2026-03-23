@@ -45,8 +45,8 @@ symbols:
 	$(MAKE) -C $(KDIR) M="$(PWD)" modules
 	mv lime.ko lime-$(KVER).ko
 
-modules:    main.c disk.c tcp.c hash.c lime.h
-	$(MAKE) -C /lib/modules/$(KVER)/build M="$(PWD)" $@
+modules:    main.c disk.c tcp.c hash.c deflate.c lime.h
+	$(MAKE) -C $(KDIR) M="$(PWD)" $@
 	strip --strip-unneeded lime.ko
 
 modules_install:    modules

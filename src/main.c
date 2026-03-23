@@ -34,29 +34,7 @@ static ssize_t try_write(void *, ssize_t);
 static int setup(void);
 static void cleanup(void);
 
-// External
-extern ssize_t write_vaddr_tcp(void *, size_t);
-extern int setup_tcp(void);
-extern void cleanup_tcp(void);
-
-extern ssize_t write_vaddr_disk(void *, size_t);
-extern int setup_disk(char *, int);
-extern void cleanup_disk(void);
-
-extern int ldigest_init(void);
-extern int ldigest_update(void *, size_t);
-extern int ldigest_final(void);
-extern int ldigest_write_tcp(void);
-extern int ldigest_write_disk(void);
-extern int ldigest_clean(void);
-
-#ifdef LIME_SUPPORTS_DEFLATE
-extern int deflate_begin_stream(void *, size_t);
-extern int deflate_end_stream(void);
-extern ssize_t deflate(const void *, size_t);
-#endif
-
-static char * format = 0;
+static char * format = NULL;
 static int mode = 0;
 static int method = 0;
 
@@ -66,12 +44,12 @@ static void * vpage;
 static void *deflate_page_buf;
 #endif
 
-char * path = 0;
+char * path = NULL;
 int dio = 0;
 int port = 0;
 int localhostonly = 0;
 
-char * digest = 0;
+char * digest = NULL;
 int compute_digest = 0;
 
 int no_overlap = 0;
@@ -135,7 +113,7 @@ static int __init lime_init_module (void)
     return init();
 }
 
-static int init() {
+static int init(void) {
     struct resource *p;
     int err = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
@@ -154,18 +132,29 @@ static int init() {
 
     if (digest) {
         compute_digest = ldigest_init();
-        no_overlap = 1;
+        if (compute_digest == LIME_DIGEST_COMPUTE)
+            no_overlap = 1;
     }
 
     vpage = (void *) __get_free_page(GFP_NOIO);
+    if (!vpage) {
+        DBG("Failed to allocate page");
+        err = -ENOMEM;
+        goto err_digest;
+    }
 
 #ifdef LIME_SUPPORTS_DEFLATE
     if (compress) {
         deflate_page_buf = kmalloc(PAGE_SIZE, GFP_NOIO);
+        if (!deflate_page_buf) {
+            DBG("Failed to allocate deflate buffer");
+            err = -ENOMEM;
+            goto err_vpage;
+        }
         err = deflate_begin_stream(deflate_page_buf, PAGE_SIZE);
         if (err < 0) {
             DBG("ZLIB begin stream failed");
-            return err;
+            goto err_deflate_buf;
         }
         no_overlap = 1;
     }
@@ -223,6 +212,18 @@ static int init() {
     free_page((unsigned long) vpage);
 
     return 0;
+
+#ifdef LIME_SUPPORTS_DEFLATE
+err_deflate_buf:
+    kfree(deflate_page_buf);
+err_vpage:
+#endif
+    free_page((unsigned long) vpage);
+err_digest:
+    if (digest)
+        ldigest_clean();
+    cleanup();
+    return err;
 }
 
 static ssize_t write_lime_header(struct resource * res) {
@@ -353,8 +354,7 @@ static ssize_t write_vaddr(void * v, size_t is) {
     }
 #endif
 
-    ret = try_write(v, is);
-    return ret;
+    return try_write(v, is);
 }
 
 static ssize_t write_flush(void) {
@@ -379,7 +379,7 @@ static ssize_t try_write(void * v, ssize_t is) {
     if (ret < 0) {
         DBG("Write error: %zd", ret);
     } else if (ret != is) {
-        DBG("Short write %zu instead of %zu.", ret, is);
+        DBG("Short write %zd instead of %zd.", ret, is);
         ret = -1;
     }
 
@@ -391,7 +391,10 @@ static int setup(void) {
 }
 
 static void cleanup(void) {
-    return (method == LIME_METHOD_TCP) ? cleanup_tcp() : cleanup_disk();
+    if (method == LIME_METHOD_TCP)
+        cleanup_tcp();
+    else
+        cleanup_disk();
 }
 
 static void __exit lime_cleanup_module(void) {

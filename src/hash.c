@@ -24,23 +24,6 @@
 
 #include "lime.h"
 
-
-int ldigest_init(void);
-int ldigest_update(void *v, size_t is);
-int ldigest_final(void);
-int ldigest_write_tcp(void);
-void ldigest_clean(void);
-
-// External
-extern ssize_t write_vaddr_tcp(void *, size_t);
-extern int setup_tcp(void);
-extern void cleanup_tcp(void);
-
-extern ssize_t write_vaddr_disk(void *, size_t);
-extern int setup_disk(char *, int);
-extern void cleanup_disk(void);
-int ldigest_write_disk(void);
-
 static u8 *output;
 static int digestsize;
 static char *digest_value;
@@ -55,7 +38,7 @@ static struct ahash_request *req;
 static struct crypto_hash *tfm;
 static struct hash_desc desc;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-struct crypto_tfm *tfm;
+static struct crypto_tfm *tfm;
 #endif
 
 int ldigest_init(void) {
@@ -63,7 +46,10 @@ int ldigest_init(void) {
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     tfm = crypto_alloc_ahash(digest, 0, CRYPTO_ALG_ASYNC);
-    if (unlikely(IS_ERR(tfm))) goto init_fail;
+    if (unlikely(IS_ERR(tfm))) {
+        tfm = NULL;
+        goto init_fail;
+    }
 
     req = ahash_request_alloc(tfm, GFP_ATOMIC);
     if (unlikely(!req)) goto init_fail;
@@ -74,8 +60,10 @@ int ldigest_init(void) {
     crypto_ahash_init(req);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     tfm = crypto_alloc_hash(digest, 0, CRYPTO_ALG_ASYNC);
-    if (unlikely(IS_ERR(tfm)))
+    if (unlikely(IS_ERR(tfm))) {
+        tfm = NULL;
         goto init_fail;
+    }
 
     desc.tfm = tfm;
     desc.flags = 0;
@@ -87,13 +75,16 @@ int ldigest_init(void) {
     if (unlikely(tfm == NULL))
         goto init_fail;
 
+    digestsize = crypto_tfm_alg_digestsize(tfm);
     crypto_digest_init(tfm);
 #else
     DBG("Digest not supported for this kernel version.");
     goto init_fail;
 #endif
 
-    output = kzalloc(sizeof(u8) * digestsize, GFP_ATOMIC);
+    output = kzalloc(digestsize, GFP_ATOMIC);
+    if (!output)
+        goto init_fail;
 
     return LIME_DIGEST_COMPUTE;
 
@@ -102,12 +93,30 @@ init_fail:
     return LIME_DIGEST_FAILED;
 }
 
+static int ldigest_update_sg(struct scatterlist *sg, size_t len) {
+    int ret = 0;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    ahash_request_set_crypt(req, sg, output, len);
+    ret = crypto_ahash_update(req);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
+    ret = crypto_hash_update(&desc, sg, len);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
+    crypto_digest_update(tfm, sg, 1);
+#endif
+
+    return ret;
+}
+
 int ldigest_update(void *v, size_t is) {
     int ret;
     struct scatterlist sg;
 
     if (likely(virt_addr_valid(v))) {
         sg_init_one(&sg, (u8 *) v, is);
+        ret = ldigest_update_sg(&sg, is);
+        if (ret < 0)
+            goto update_fail;
     } else {
         int nbytes = is;
 
@@ -119,26 +128,15 @@ int ldigest_update(void *v, size_t is) {
                 len = PAGE_SIZE - off;
             sg_init_table(&sg, 1);
             sg_set_page(&sg, vmalloc_to_page((u8 *) v), len, off);
-             
+
+            ret = ldigest_update_sg(&sg, len);
+            if (ret < 0)
+                goto update_fail;
+
             v += len;
             nbytes -= len;
         }
     }
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
-    ahash_request_set_crypt(req, &sg, output, is);
-    ret = crypto_ahash_update(req);
-    if (ret < 0)
-        goto update_fail;
-
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
-    ret = crypto_hash_update(&desc, &sg, is);
-    if (ret < 0) 
-        goto update_fail;
-
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-    crypto_digest_update(tfm, &sg, is);
-#endif
 
     return LIME_DIGEST_COMPUTE;
 
@@ -152,6 +150,8 @@ int ldigest_final(void) {
 
     DBG("Finalizing the digest.");
     digest_value = kmalloc(digestsize * 2 + 1, GFP_KERNEL);
+    if (!digest_value)
+        goto final_fail;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     ret = crypto_ahash_final(req);
@@ -197,14 +197,14 @@ int ldigest_write_tcp(void) {
 int ldigest_write_disk(void) {
     char *p;
     int ret = 0;
+    int len;
 
-    p = kmalloc(strlen(path) + strlen(digest) + 2, GFP_KERNEL);
+    len = strlen(path) + strlen(digest) + 2;
+    p = kmalloc(len, GFP_KERNEL);
     if (!p)
         return LIME_DIGEST_FAILED;
 
-    strcpy(p, path);
-    strcat(p, ".");
-    strcat(p, digest);
+    snprintf(p, len, "%s.%s", path, digest);
 
     if (setup_disk(p, 0)) {
         ret = LIME_DIGEST_FAILED;
@@ -221,13 +221,17 @@ out:
 }
 
 void ldigest_clean(void) {
+    kfree(digest_value);
     kfree(output);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
-    crypto_free_ahash(tfm);
+    if (tfm)
+        crypto_free_ahash(tfm);
     ahash_request_free(req);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
-    crypto_free_hash(tfm);
+    if (tfm)
+        crypto_free_hash(tfm);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-    crypto_free_tfm(tfm);
+    if (tfm)
+        crypto_free_tfm(tfm);
 #endif
 }

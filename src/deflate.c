@@ -25,9 +25,6 @@
 #include <linux/zlib.h>
 
 #include "lime.h"
-extern int deflate_begin_stream(void *out, size_t outlen);
-int deflate_end_stream(void);
-ssize_t deflate(const void *in, size_t inlen);
 
 /* Balance high compression level and memory footprint. */
 #define DEFLATE_WBITS       11  /* 8KB */
@@ -38,7 +35,7 @@ static struct z_stream_s zstream;
 static void *next_out;
 static size_t avail_out;
 
-extern int deflate_begin_stream(void *out, size_t outlen)
+int deflate_begin_stream(void *out, size_t outlen)
 {
     int size;
 
