@@ -112,13 +112,21 @@ scripts/config --enable CONFIG_CRYPTO_SHA256
 scripts/config --enable CONFIG_INET
 scripts/config --enable CONFIG_NET
 
-# Avoid host-tool build failures on modern toolchains
-scripts/config --disable CONFIG_STACK_VALIDATION
+# Avoid host-tool build failures on modern toolchains.
+# These are harmless on newer kernels (configs may not exist or have
+# no effect), but critical for old kernels (4.x) where the host tools
+# don't compile against modern system headers / libraries.
 scripts/config --disable CONFIG_GCC_PLUGINS
-# Module signing builds scripts/sign-file against the host OpenSSL.
-# Old kernels use OpenSSL 1.x APIs removed in OpenSSL 3.x (Ubuntu 24.04).
+# ORC unwinder selects STACK_VALIDATION which builds objtool; old
+# objtool uses deprecated libelf APIs (-Werror=deprecated-declarations)
+scripts/config --disable CONFIG_UNWINDER_ORC
+scripts/config --disable CONFIG_STACK_VALIDATION
+# sign-file/extract-cert link against OpenSSL (1.x APIs removed in 3.x)
 scripts/config --disable CONFIG_MODULE_SIG
 scripts/config --disable CONFIG_SYSTEM_TRUSTED_KEYRING
+# Old SELinux classmap.h doesn't know about AF_* families added in
+# newer kernel headers, causing a hard #error
+scripts/config --disable CONFIG_SECURITY_SELINUX
 make -s olddefconfig
 
 ##
