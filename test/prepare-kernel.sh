@@ -147,8 +147,16 @@ fi
 echo "==> Stripping tree for caching..."
 
 # Remove large directories that are never needed for module builds
-rm -rf Documentation samples tools firmware sound usr certs virt \
+rm -rf Documentation samples firmware sound usr certs virt \
        drivers fs mm net block crypto ipc security lib init kernel
+
+# Clean tools/ but keep objtool (needed by kbuild for module linking)
+if [ -d tools/objtool ]; then
+    find tools -mindepth 1 -maxdepth 1 -not -name objtool \
+        -exec rm -rf {} + 2>/dev/null || true
+else
+    rm -rf tools
+fi
 
 # Remove source files (keep headers, makefiles, build scripts, linker scripts)
 find . -type f \( -name "*.c" -o -name "*.S" \) \
