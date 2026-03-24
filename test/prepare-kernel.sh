@@ -151,7 +151,12 @@ LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-function-declaration"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-int"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=incompatible-pointer-types"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=int-conversion"
-if ! make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" modules_prepare \
+# CONFIG_STACK_VALIDATION= prevents objtool from building.  Old objtool
+# doesn't compile on modern toolchains and isn't needed for LiME.
+# Passing it as a Make variable override is more reliable than Kconfig
+# manipulation (choice defaults and select dependencies fight back).
+if ! make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" \
+     CONFIG_STACK_VALIDATION= modules_prepare \
      > /tmp/modules_prepare.log 2>&1; then
     echo "::error::modules_prepare failed:"
     cat /tmp/modules_prepare.log
