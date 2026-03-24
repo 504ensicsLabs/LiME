@@ -121,9 +121,16 @@ make -s olddefconfig
 ## Build
 ##
 echo "==> modules_prepare ($(nproc) jobs)..."
-# -Wno-error: suppress host-tool warnings promoted to errors by newer GCC
-# -fcommon: allow duplicate globals in old dtc (GCC 10+ defaults to -fno-common)
-make -j"$(nproc)" HOSTCFLAGS="-Wno-error -fcommon" modules_prepare 2>&1 | tail -3
+# Host tool compilation flags for modern GCC (14+) building old kernels:
+#   -Wno-error: suppress warnings promoted to errors
+#   -fcommon: allow duplicate globals in old dtc (GCC 10+ defaults to -fno-common)
+#   -Wno-error=implicit-function-declaration, etc.: GCC 14 made these hard errors
+LIME_HOSTCFLAGS="-Wno-error -fcommon"
+LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-function-declaration"
+LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-int"
+LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=incompatible-pointer-types"
+LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=int-conversion"
+make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" modules_prepare 2>&1 | tail -3
 
 if [ "$CONFIG" = "qemu" ]; then
     # Each arch has a different kernel image target

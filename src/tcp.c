@@ -31,7 +31,7 @@ static struct socket *accept;
 static int create_tcp_sock(struct socket **sock, int family) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0)
     return sock_create_kern(&init_net, family, SOCK_STREAM, IPPROTO_TCP, sock);
-#elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,5)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,6)
     return sock_create_kern(family, SOCK_STREAM, IPPROTO_TCP, sock);
 #else
     return sock_create(family, SOCK_STREAM, IPPROTO_TCP, sock);

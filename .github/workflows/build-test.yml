@@ -75,7 +75,7 @@ jobs:
 
       - name: Cache kernel tree
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/linux-build
           key: kernel-${{ matrix.kernel }}-${{ matrix.config }}-${{ steps.pin.outputs.version }}-${{ hashFiles('test/prepare-kernel.sh') }}
@@ -133,7 +133,7 @@ jobs:
 
       - name: Cache kernel tree
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/linux-build
           # Canary uses dynamic resolution — conf file is irrelevant, only hash the script
@@ -174,7 +174,7 @@ jobs:
 
       - name: Cache kernel tree
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/linux-build
           key: kernel-6.6-defconfig-${{ steps.pin.outputs.version }}-${{ hashFiles('test/prepare-kernel.sh') }}
@@ -231,7 +231,7 @@ jobs:
 
       - name: Cache full kernel build
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/linux-build
           key: kernel-qemu-${{ matrix.kernel }}-${{ steps.pin.outputs.version }}-${{ hashFiles('test/prepare-kernel.sh') }}

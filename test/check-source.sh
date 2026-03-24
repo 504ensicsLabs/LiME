@@ -57,6 +57,8 @@ fi
 ##
 echo "--- SPDX headers ---"
 for f in "$SRC"/*.c "$SRC"/*.h; do
+    # Skip kbuild-generated files (e.g. lime.mod.c)
+    case "$(basename "$f")" in *.mod.c) continue ;; esac
     if ! grep -q 'SPDX-License-Identifier' "$f"; then
         err "$(basename "$f"): missing SPDX header"
     fi
