@@ -35,6 +35,56 @@ static ssize_t try_write(void *, ssize_t);
 static int setup(void);
 static void cleanup(void);
 
+/*
+ * Helpers for walking the iomem_resource tree depth-first.
+ *
+ * Since kernel 5.8, drivers like virtio-mem and dax/kmem create
+ * "System RAM" entries nested inside non-busy parent resources.
+ * A sibling-only walk misses all such memory, so we must descend
+ * into children when searching for RAM ranges.
+ *
+ * However, once we find a matching range, we must NOT descend into
+ * its children — sub-resources like "Kernel code" and "Kernel data"
+ * also carry IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY flags but are
+ * sub-ranges already covered by the parent dump.
+ */
+
+/* Advance past p and all its descendants to the next unrelated node. */
+static struct resource *lime_skip_subtree(struct resource *p)
+{
+    while (!p->sibling && p->parent)
+        p = p->parent;
+    return p->sibling;
+}
+
+/* Depth-first: try child first, then sibling/ancestor's sibling. */
+static struct resource *lime_next_resource(struct resource *p)
+{
+    if (p->child)
+        return p->child;
+    return lime_skip_subtree(p);
+}
+
+/*
+ * Check whether a resource represents busy System RAM.
+ * Since 4.6 we use the IORESOURCE_SYSTEM_RAM flag which matches all
+ * variants ("System RAM", "System RAM (virtio_mem)", "System RAM (kmem)").
+ * On older kernels fall back to exact string comparison, which is fine
+ * because nested System RAM entries did not exist before 5.8.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+static inline int lime_is_ram(struct resource *r)
+{
+    return (r->flags & (IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY)) ==
+           (IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY);
+}
+#else
+static inline int lime_is_ram(struct resource *r)
+{
+    return r->name && strcmp(r->name, LIME_RAMSTR) == 0;
+}
+#endif
+
 static char * format = NULL;
 static int mode = 0;
 static int method = 0;
@@ -46,16 +96,12 @@ static void *deflate_page_buf;
 #endif
 
 char * path = NULL;
-int dio = 0;
+static int dio = 0;
 int port = 0;
 int localhostonly = 0;
 
 char * digest = NULL;
-int compute_digest = 0;
-
-int no_overlap = 0;
-
-extern struct resource iomem_resource;
+static int compute_digest = 0;
 
 module_param(path, charp, S_IRUGO);
 module_param(dio, int, S_IRUGO);
@@ -64,12 +110,12 @@ module_param(localhostonly, int, S_IRUGO);
 module_param(digest, charp, S_IRUGO);
 
 #ifdef LIME_SUPPORTS_TIMING
-long timeout = 1000;
+static long timeout = 1000;
 module_param(timeout, long, S_IRUGO);
 #endif
 
 #ifdef LIME_SUPPORTS_DEFLATE
-int compress = 0;
+static int compress = 0;
 module_param(compress, int, S_IRUGO);
 #endif
 
@@ -109,7 +155,6 @@ static int __init lime_init_module (void)
     }
 
     method = (sscanf(path, "tcp:%d", &port) == 1) ? LIME_METHOD_TCP : LIME_METHOD_DISK;
-    if (digest) compute_digest = LIME_DIGEST_COMPUTE;
 
     return init();
 }
@@ -131,11 +176,8 @@ static int init(void) {
         return err;
     }
 
-    if (digest) {
+    if (digest)
         compute_digest = ldigest_init();
-        if (compute_digest == LIME_DIGEST_COMPUTE)
-            no_overlap = 1;
-    }
 
     vpage = (void *) __get_free_page(GFP_NOIO);
     if (!vpage) {
@@ -157,26 +199,31 @@ static int init(void) {
             DBG("ZLIB begin stream failed");
             goto err_deflate_buf;
         }
-        no_overlap = 1;
     }
 #endif
 
-    for (p = iomem_resource.child; p ; p = p->sibling) {
+    for (p = iomem_resource.child; p; ) {
 
-        if (!p->name || strcmp(p->name, LIME_RAMSTR))
+        if (!lime_is_ram(p)) {
+            /* Not RAM — descend into children to find nested RAM. */
+            p = lime_next_resource(p);
             continue;
+        }
 
         if (mode == LIME_MODE_LIME && write_lime_header(p) < 0) {
-            DBG("Error writing header 0x%lx - 0x%lx", (long) p->start, (long) p->end);
+            DBG("Error writing header 0x%llx - 0x%llx", (unsigned long long) p->start, (unsigned long long) p->end);
             break;
         } else if (mode == LIME_MODE_PADDED && write_padding((size_t) ((p->start - 1) - p_last)) < 0) {
-            DBG("Error writing padding 0x%lx - 0x%lx", (long) p_last, (long) p->start - 1);
+            DBG("Error writing padding 0x%llx - 0x%llx", (unsigned long long) p_last, (unsigned long long) (p->start - 1));
             break;
         }
 
         write_range(p);
 
         p_last = p->end;
+
+        /* Children are sub-ranges already covered — skip them. */
+        p = lime_skip_subtree(p);
     }
 
     write_flush();
@@ -274,14 +321,12 @@ static void write_range(struct resource * res) {
     ktime_t start,end;
 #endif
 
-    DBG("Writing range %llx - %llx.", res->start, res->end);
+    DBG("Writing range %llx - %llx.", (unsigned long long) res->start, (unsigned long long) res->end);
 
     for (i = res->start; i <= res->end; i += is) {
 #ifdef LIME_SUPPORTS_TIMING
         start = ktime_get_real();
 #endif
-        p = pfn_to_page((i) >> PAGE_SHIFT);
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
         is = min((resource_size_t) PAGE_SIZE, (resource_size_t) (res->end - i + 1));
 #else
@@ -291,35 +336,34 @@ static void write_range(struct resource * res) {
         if (is < PAGE_SIZE) {
             // We can't map partial pages and
             // the linux kernel doesn't use them anyway
-            DBG("Padding partial page: vaddr %p size: %lu", (void *) i, (unsigned long) is);
+            DBG("Padding partial page: addr 0x%llx size: %lu", (unsigned long long) i, (unsigned long) is);
+            write_padding(is);
+        } else if (unlikely(!pfn_valid(i >> PAGE_SHIFT))) {
+            // Guard against invalid PFNs which can occur on SPARSEMEM
+            // configs, during memory hotremove, or on unusual NUMA layouts
+            DBG("Invalid PFN 0x%llx, writing padding", (unsigned long long)(i >> PAGE_SHIFT));
             write_padding(is);
         } else {
-#ifdef LIME_USE_KMAP_ATOMIC
-            v = kmap_atomic(p);
-#else
-            v = kmap(p);
-#endif
-            /*
-             * If we need to compute the digest or compress the output
-             * take a snapshot of the page. Otherwise save some cycles.
-             */
-#ifdef LIME_USE_KMAP_ATOMIC
-            preempt_enable();
-#endif
-            if (no_overlap) {
-                copy_page(vpage, v);
-                s = write_vaddr(vpage, is);
-            } else {
-                s = write_vaddr(v, is);
+            p = pfn_to_page(i >> PAGE_SHIFT);
+            v = lime_map_page(p);
+#ifdef copy_mc_to_kernel
+            {
+                unsigned long mc_err;
+                mc_err = copy_mc_to_kernel(vpage, v, PAGE_SIZE);
+                if (mc_err) {
+                    DBG("Hardware memory error at PFN 0x%llx (%lu bytes unreadable)",
+                        (unsigned long long)(i >> PAGE_SHIFT), mc_err);
+                    memset((char *)vpage + PAGE_SIZE - mc_err, 0, mc_err);
+                }
             }
-#ifdef LIME_USE_KMAP_ATOMIC
-            preempt_disable();
-            kunmap_atomic(v);
 #else
-            kunmap(p);
+            copy_page(vpage, v);
 #endif
+            lime_unmap_page(v, p);
+
+            s = write_vaddr(vpage, is);
             if (s < 0) {
-                DBG("Failed to write page: vaddr %p. Skipping Range...", v);
+                DBG("Failed to write page: addr 0x%llx. Skipping Range...", (unsigned long long) i);
                 break;
             }
         }

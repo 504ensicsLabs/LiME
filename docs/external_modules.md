@@ -2,9 +2,9 @@
 
 ## Contents
 
-* [Intro](#introduction)
-* [How To](#how-to)
-  * [Required Tools](#required-tools)
+* [Introduction](#introduction)
+* [How to](#how-to)
+  * [Required tools](#required-tools)
   * [Downloading the kernel source](#downloading-the-kernel-source)
   * [Choosing the correct kernel release](#choosing-the-correct-kernel-release)
   * [Using an old kernel config](#using-an-old-kernel-config)
@@ -42,7 +42,7 @@ the end of this document.
 
 ### Required tools
 
-You will need the following tools
+You will need the following tools:
 
 * git
 * build-essential package **OS specific**
@@ -87,7 +87,7 @@ kernel.ubuntu.com/ubuntu/ubuntu-< release >.git
 ```
 
 Following our Xenial example, we would clone the source
-by entering this
+by entering this:
 
 ```bash
 git clone git://kernel.ubuntu.com/ubuntu/ubuntu-xenial.git
@@ -116,7 +116,7 @@ $ uname -r
 
 The most important take-away of the kernel release is the
 string after the `sublevel` digit. The Linux kernel is
-versioned in the following format
+versioned in the following format:
 
 ```text
 version.patchlevel.sublevel-localversion
@@ -125,7 +125,7 @@ version.patchlevel.sublevel-localversion
 From the example above we can see that our local version
 needs to be `-38-generic`. Once you have determined the
 version that you need to build, change directory into your
-kernel source. From this location run
+kernel source. From this location run:
 
 ```bash
 git tag -l
@@ -140,7 +140,7 @@ git checkout < tag >
 ```
 
 Following our Ubuntu guide you would run something like
-the following
+the following:
 
 ```bash
 git checkout Ubuntu-lts-4.10.0-9.11_16.04.2
@@ -154,14 +154,14 @@ built. The kernel build process stores this information in
 a config file, storing that in `/boot/config-*`.
 Copy the correct config file to your kernel working
 directory and then rename it to `.config`. In our Ubuntu
-example the correct config file is located/called
+example the correct config file is located at:
 
 ```text
 /boot/config-4.10.0-38-generic
 ```
 
-Once you have renamed the config file `.config` run the
-following
+Once you have renamed the config file `.config`, run the
+following:
 
 ```console
 $ make olddefconfig
@@ -190,7 +190,7 @@ will most likely fail to install. This is due to a kernel
 safety measure, enabled by default, to prevent incompatible
 modules from loading.
 Once the config completes, we need to make sure that all
-the versions match before we continue. Run the following
+the versions match before we continue. Run the following:
 
 ```console
 $ make kernelrelease
@@ -204,7 +204,7 @@ tag with git.
 Did you notice that our kernel release is missing the
 `localversion` string? Well, let's fix that using your
 favorite text editor.
-Find the lines that say the following
+Find the lines that say the following:
 
 ```text
 #
@@ -220,7 +220,7 @@ CONFIG_HAVE_KERNEL_GZIP=y
 
 Change **both** `CONFIG_LOCALVERSION` and
 `# CONFIG_LOCALVERSION_AUTO is not set` to match the
-following example
+following example:
 
 ```text
 CONFIG_LOCALVERSION="< localversion >"
@@ -235,7 +235,7 @@ CONFIG_LOCALVERSION="-38-generic"
 CONFIG_LOCALVERSION_AUTO=n
 ```
 
-Now! run `make kernelrelease` again
+Now run `make kernelrelease` again:
 
 ```console
 $ make kernelrelease
@@ -244,7 +244,7 @@ $ make kernelrelease
 
 Is your localversion correct? If so, continue.
 Note the `+` at the end of the localversion string.
-We need to remove this
+We need to remove this:
 
 ```bash
 touch .scmversion
@@ -260,7 +260,7 @@ $ make kernelrelease
 
 ### Prepare the source and compile
 
-Now run
+Now run:
 
 ```bash
 make modules_prepare
@@ -271,14 +271,14 @@ external modules. This skips compiling an entire kernel,
 saving you some cycles. If this completes without error,
 one can proceed with compiling the module. We will use
 LiME as the example module. Change directory into your
-LiME source and run
+LiME source and run:
 
 ```bash
 make -C < path-src-tree > KVER=< kernel-version > M=$(pwd)
 ```
 
 `path-src-tree` is the location where you cloned your
-kernel source. Again, following our Ubuntu example
+kernel source. Again, following our Ubuntu example:
 
 ```bash
 make -C /home/kd8bny/ubuntu-xenial KVER=4.10.0-38-generic M=$(pwd)
@@ -307,17 +307,23 @@ http://vault.centos.org/< cent version >/os/Source/
   SPackages/kernel-3.10.0-123.el7.src.rpm
 ```
 
-Once you have downloaded the RPM extract it using `tar` or
-some other file archiving tool. Once extracted you will see
-another archive dubbed `linux-<version>`. This is your
-source, extract it. You can use the config files already
-found in this source. Continue as stated in the guide,
-ignoring the use of `git`.
+Once you have downloaded the RPM, extract it using
+`rpm2cpio` and `cpio`:
+
+```bash
+rpm2cpio kernel-3.10.0-123.el7.src.rpm | cpio -idmv
+```
+
+Inside the extracted contents you will find an archive
+named `linux-<version>`. Extract it to get the kernel
+source. You can use the config files already found in
+this source. Continue as stated in the guide, ignoring
+the use of `git`.
 
 ### Fedora
 
 Fedora keeps kernel source off the main linux git tree.
-Clone it from the following location
+Clone it from the following location:
 
 ```text
 git://git.kernel.org/pub/scm/linux/kernel/git/jwboyer/fedora.git
@@ -333,5 +339,5 @@ can download the source from Red Hat.
 
 ### Ubuntu
 
-Follow as shown in guide.
+Follow as shown in the guide.
 [Ubuntu kernel source](http://kernel.ubuntu.com/git/)

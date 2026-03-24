@@ -23,7 +23,7 @@ LiME is a Loadable Kernel Module (LKM). LiME ships with a
 default Makefile that should be suitable for compilation on
 most modern Linux systems.
 
-For detailed instructions on using LKM see
+For detailed instructions on using LKMs, see
 <https://www.kernel.org/doc/Documentation/kbuild/modules.txt>.
 
 ### External
@@ -74,7 +74,7 @@ if we've missed anything.
 
 In order to simplify the process, we will first set some
 environment variables. In a terminal, type the following
-commands.
+commands:
 
 ```bash
 export SDK_PATH=/path/to/android-sdk-linux/
@@ -153,7 +153,7 @@ format        Required. One of the following:
               padded: Pads all non-System RAM ranges
               with 0s, starting from physical address 0.
               lime: Each range is prepended with a
-              fixed-sized header which contains address
+              fixed-size header which contains address
               space information.
               raw: Simply concatenates all System RAM
               ranges. Most memory analysis tools do not
@@ -188,11 +188,10 @@ localhostonly Optional. 1 restricts the tcp to only
               interfaces (default)
 timeout       Optional. If it takes longer than the
               specified timeout (in milliseconds) to
-              read/write a page of memory then the range
-              is assumed to be bad and is skipped. To
-              disable this set timeout to 0. The default
-              setting is 1000 (1 second). Only available
-              on kernel versions >= 2.6.35.
+              read/write a page of memory, then the rest
+              of that range is skipped. Set timeout to 0
+              to disable. The default is 1000 (1 second).
+              Only available on kernel versions >= 2.6.35.
 ```
 
 ### Acquisition of Memory over TCP

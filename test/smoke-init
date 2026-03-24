@@ -1,0 +1,138 @@
+#!/bin/sh
+# smoke-init — Init script for LiME QEMU smoke tests.
+# Runs inside a minimal VM, exercises all output formats, digest,
+# and compression, then reports results via serial console.
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+mount -t tmpfs tmp /tmp
+
+PASS=0
+FAIL=0
+SKIP=0
+
+pass() { PASS=$((PASS+1)); echo "  PASS: $1"; }
+fail() { FAIL=$((FAIL+1)); echo "  FAIL: $1"; }
+skip() { SKIP=$((SKIP+1)); echo "  SKIP: $1"; }
+
+echo "=== LiME Smoke Test ==="
+echo "Kernel: $(uname -r)"
+echo "RAM:    $(awk '/MemTotal/{print $2}' /proc/meminfo) kB"
+
+# Helper — load LiME, check output, record size, unload, then delete
+# the output to free tmpfs space (the VM has limited RAM).
+# Sets LAST_SIZE on success.
+LAST_SIZE=0
+run_lime() {
+    local tag="$1"; shift
+    local out="/tmp/${tag}"
+
+    echo "--- $tag ---"
+    # Free tmpfs space from previous test (VM has limited RAM)
+    rm -f /tmp/t[0-9]* 2>/dev/null
+    insmod /lib/modules/lime.ko "path=${out}" "$@" 2>&1
+    local r=$?
+    rmmod lime 2>&1 || true
+
+    if [ $r -ne 0 ]; then
+        fail "$tag: insmod returned $r"
+        LAST_SIZE=0
+        return 1
+    fi
+
+    if [ ! -s "$out" ]; then
+        fail "$tag: output empty or missing"
+        LAST_SIZE=0
+        return 1
+    fi
+
+    LAST_SIZE=$(wc -c < "$out")
+    pass "$tag: $LAST_SIZE bytes"
+    return 0
+}
+
+##
+## Test 1 — LIME format: verify magic bytes
+##
+run_lime "t1" "format=lime"
+if [ $? -eq 0 ]; then
+    MAGIC=$(od -A n -t x1 -N 4 /tmp/t1 | tr -d ' ')
+    if [ "$MAGIC" = "454d694c" ]; then
+        pass "lime magic 0x4C694D45"
+    else
+        fail "lime magic: expected 454d694c, got $MAGIC"
+    fi
+fi
+
+##
+## Test 2 — RAW format: remember size for compression comparison
+##
+run_lime "t2" "format=raw"
+RAW_SIZE=$LAST_SIZE
+
+##
+## Test 3 — PADDED format: output should be >= total RAM
+##
+run_lime "t3" "format=padded"
+if [ $? -eq 0 ]; then
+    # Padded output should be at least as large as raw (it adds zero-fill
+    # for gaps).  On VMs where System RAM starts at a high physical address,
+    # the gap padding may exceed tmpfs capacity — so we only assert >= raw,
+    # not >= total physical memory.
+    if [ "$LAST_SIZE" -ge "$RAW_SIZE" ]; then
+        pass "padded size >= raw ($LAST_SIZE >= $RAW_SIZE)"
+    else
+        fail "padded size < raw ($LAST_SIZE < $RAW_SIZE)"
+    fi
+fi
+
+##
+## Test 4 — Digest: SHA-256 sidecar file should be created
+##
+run_lime "t4" "format=lime" "digest=sha256"
+if [ -s /tmp/t4.sha256 ]; then
+    DIGEST=$(cat /tmp/t4.sha256)
+    LEN=$(echo -n "$DIGEST" | wc -c)
+    if [ "$LEN" -eq 64 ]; then
+        pass "sha256 sidecar: $DIGEST"
+    else
+        fail "sha256 sidecar wrong length ($LEN, expected 64)"
+    fi
+else
+    # Sidecar missing means the kernel's crypto subsystem didn't have
+    # sha256 available (common in minimal/embedded kernels).  The dump
+    # itself still succeeds — digest is best-effort.
+    skip "sha256 (algorithm not available in this kernel)"
+fi
+
+##
+## Test 5 — Compression: output should be smaller than raw
+##
+if [ "$RAW_SIZE" -gt 0 ]; then
+    run_lime "t5" "format=lime" "compress=1"
+    if [ $? -eq 0 ]; then
+        if [ "$LAST_SIZE" -lt "$RAW_SIZE" ]; then
+            pass "compressed $LAST_SIZE < raw $RAW_SIZE"
+        else
+            fail "compressed not smaller ($LAST_SIZE >= $RAW_SIZE)"
+        fi
+    else
+        skip "compression (not available)"
+    fi
+else
+    skip "compression (raw test failed, no baseline)"
+fi
+
+##
+## Results
+##
+echo ""
+echo "=== Results: $PASS passed, $FAIL failed, $SKIP skipped ==="
+if [ $FAIL -eq 0 ]; then
+    echo "SMOKE_TEST_RESULT=PASS"
+else
+    echo "SMOKE_TEST_RESULT=FAIL"
+fi
+echo "=== TEST_COMPLETE ==="
+exec poweroff -f

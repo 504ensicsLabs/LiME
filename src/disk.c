@@ -35,7 +35,9 @@ static int dio_write_test(char *path, int oflags)
     if (f && !IS_ERR(f)) {
         ok = write_vaddr_disk("DIO", 3) == 3;
         filp_close(f, NULL);
+        f = NULL;
     } else {
+        f = NULL;
         ok = 0;
     }
 
@@ -82,7 +84,10 @@ void cleanup_disk(void) {
     set_fs(KERNEL_DS);
 #endif
 
-    if(f) filp_close(f, NULL);
+    if(f) {
+        filp_close(f, NULL);
+        f = NULL;
+    }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
     set_fs(fs);

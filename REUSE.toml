@@ -6,12 +6,22 @@ version = 1
 [[annotations]]
 path = [
     "README.md",
-    "doc/README.md",
-    "doc/external_modules.md",
+    "docs/README.md",
+    "docs/external_modules.md",
     ".gitignore",
     ".github/FUNDING.yml",
     ".github/workflows/pre-commit.yml",
     ".pre-commit-config.yaml",
+    ".github/workflows/build-test.yml",
+    "docs/test-architecture.md",
+    "test/Dockerfile",
+    "test/build-initramfs.sh",
+    "test/check-source.sh",
+    "test/kernel-versions.conf",
+    "test/local.sh",
+    "test/prepare-kernel.sh",
+    "test/qemu-smoke-test.sh",
+    "test/smoke-init",
 ]
 SPDX-FileCopyrightText = "2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>"
 SPDX-License-Identifier = "GPL-2.0-only"

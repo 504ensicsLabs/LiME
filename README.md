@@ -28,9 +28,9 @@ other tools designed for Linux memory acquisition.
 ## Usage
 
 Detailed documentation on LiME's usage and internals can
-be found in the "doc" directory of the project.
+be found in the "docs" directory of the project.
 
-LiME utilizes the insmod command to load the module,
+LiME uses the insmod command to load the module,
 passing required arguments for its execution.
 
 ```text
@@ -88,8 +88,8 @@ localhostonly (optional):
 
 timeout (optional):
     1000 ~ max milliseconds tolerated to read/write a
-           page (default, 1 second). If a page exceeds the timeout
-           the entire memory region is skipped.
+           page (default, 1 second). If a page exceeds the timeout,
+           the rest of that memory range is skipped.
        0 ~ disable the timeout so the slow region will
            be acquired.
     This feature is only available on kernels >= 2.6.35.
@@ -154,7 +154,7 @@ nc localhost 4444 > ram.sha1
 
 For quick reference, here is a list of supported digests.
 
-### All kernel versions
+### 2.6.11 and up
 
 ```text
 crc32c
@@ -163,16 +163,16 @@ sha1, sha224, sha256, sha384, sha512
 wp512, wp384, wp256
 ```
 
-### 4.10 and up
-
-```text
-sha3-224, sha3-256, sha3-384, sha3-512
-```
-
 ### 3.0 and up
 
 ```text
 rmd128, rmd160, rmd256, rmd320
+```
+
+### 4.10 and up
+
+```text
+sha3-224, sha3-256, sha3-384, sha3-512
 ```
 
 ## Compression

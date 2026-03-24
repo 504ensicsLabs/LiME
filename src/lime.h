@@ -36,6 +36,7 @@
 #include <linux/string.h>
 #include <linux/err.h>
 #include <linux/scatterlist.h>
+#include <linux/uaccess.h>
 
 #include <net/sock.h>
 #include <net/tcp.h>
@@ -78,13 +79,26 @@
 #define LIME_SUPPORTS_TIMING
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
-#define LIME_USE_KMAP_ATOMIC
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,11,0)
+#define lime_map_page(page) kmap_local_page(page)
+#define lime_unmap_page(v, page) kunmap_local(v)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)
+#define lime_map_page(page) kmap_atomic(page)
+#define lime_unmap_page(v, page) kunmap_atomic(v)
+#else
+#define lime_map_page(page) kmap(page)
+#define lime_unmap_page(v, page) kunmap(page)
 #endif
 
 #ifdef CONFIG_ZLIB_DEFLATE
 #define LIME_SUPPORTS_DEFLATE
 #endif
+
+// main.c globals
+extern char *path;
+extern char *digest;
+extern int port;
+extern int localhostonly;
 
 // tcp.c
 extern ssize_t write_vaddr_tcp(void *, size_t);

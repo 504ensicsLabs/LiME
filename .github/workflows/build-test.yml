@@ -1,0 +1,247 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths: ['src/**', 'test/**', '.github/workflows/build-test.yml']
+  pull_request:
+    paths: ['src/**', 'test/**', '.github/workflows/build-test.yml']
+  schedule:
+    - cron: '0 6 * * 1'  # weekly — keeps caches alive (7-day eviction)
+  workflow_dispatch:
+
+env:
+  # modules_prepare doesn't generate Module.symvers (requires full kernel
+  # build) — let modpost warn instead of error.  QEMU smoke tests verify
+  # actual module loading.
+  KBUILD_MODPOST_WARN: "1"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  #  Tier 1 — Compile testing
+  #
+  #  One job per unique kernel tree.  Each job runs all applicable build
+  #  variants in sequence (~10s each) to avoid redundant cache restores.
+  #  Trees are stripped to ~100-180 MB after modules_prepare.
+  #
+  #  WERROR is tested via KCFLAGS="-Werror" (no separate kernel tree needed).
+  #
+  #  Cache budget: ~1.6 GB compile + ~700 MB QEMU + ~180 MB canary ≈ 2.5 GB
+  #                (GitHub limit: 10 GB per repo)
+  # ---------------------------------------------------------------------------
+  build:
+    name: >-
+      Build: ${{ matrix.kernel }}
+      ${{ matrix.config != 'defconfig' && format('[{0}]', matrix.config) || '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          #
+          # API breakpoints covered:
+          #   4.6  crypto_ahash              4.14  kernel_write
+          #   5.8  sock_set_reuseaddr        5.10  set_fs() removed
+          #   5.11 kmap_local_page           6.8   -Wmissing-prototypes
+          #   6.12 PREEMPT_RT merged         6.19  sockaddr_unsized
+          #
+          - { kernel: "4.15", config: defconfig,   builds: "default" }
+          - { kernel: "5.4",  config: defconfig,   builds: "default" }
+          - { kernel: "5.10", config: defconfig,   builds: "default" }
+          - { kernel: "5.15", config: defconfig,   builds: "default debug symbols werror" }
+          - { kernel: "6.1",  config: defconfig,   builds: "default" }
+          - { kernel: "6.6",  config: defconfig,   builds: "default debug symbols werror" }
+          - { kernel: "6.12", config: defconfig,   builds: "default werror" }
+          - { kernel: "6.19", config: defconfig,   builds: "default werror" }
+          - { kernel: "5.15", config: no-zlib,     builds: "default" }
+          - { kernel: "6.6",  config: no-zlib,     builds: "default" }
+          - { kernel: "6.12", config: preempt-rt,  builds: "default" }
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libelf-dev libssl-dev dwarves
+
+      # Read the pinned version for this kernel series.  The version goes
+      # into the cache key directly so bumping ONE version in the conf file
+      # invalidates only THAT version's cache entries — not all of them.
+      - name: Resolve pinned version
+        id: pin
+        run: |
+          VER=$(grep "^${{ matrix.kernel }}=" test/kernel-versions.conf | cut -d= -f2)
+          echo "version=${VER:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache kernel tree
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/linux-build
+          key: kernel-${{ matrix.kernel }}-${{ matrix.config }}-${{ steps.pin.outputs.version }}-${{ hashFiles('test/prepare-kernel.sh') }}
+
+      - name: Prepare kernel headers
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash test/prepare-kernel.sh "${{ matrix.kernel }}" "${{ matrix.config }}"
+
+      - name: Build and verify
+        run: |
+          builds="${{ matrix.builds }}"
+          for build in $builds; do
+            echo "::group::Build: $build"
+            make -C src clean || true
+            case "$build" in
+              default) make -C src KDIR=/tmp/linux-build ;;
+              debug)   make -C src debug KDIR=/tmp/linux-build ;;
+              symbols) make -C src symbols KDIR=/tmp/linux-build ;;
+              werror)  KCFLAGS="-Werror" make -C src KDIR=/tmp/linux-build ;;
+              *)       echo "::error::Unknown build variant: $build"; exit 1 ;;
+            esac
+            file src/lime-*.ko | grep -q ELF
+            echo "$build: OK ($(ls -lh src/lime-*.ko | awk '{print $5}'))"
+            echo "::endgroup::"
+          done
+
+  # Latest stable kernel — early warning, allowed to fail
+  build-latest:
+    name: "Build: latest (canary)"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libelf-dev libssl-dev dwarves
+
+      - name: Resolve latest stable kernel
+        id: latest
+        run: |
+          VER=$(curl -sf https://www.kernel.org/releases.json | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for r in data['releases']:
+              v = r['version']
+              if not r.get('iseol') and 'rc' not in v and '-' not in v:
+                  print(v)
+                  break
+          ")
+          SERIES="${VER%.*}"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "series=${SERIES}" >> "$GITHUB_OUTPUT"
+          echo "==> Latest stable: ${VER} (series ${SERIES})"
+
+      - name: Cache kernel tree
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/linux-build
+          # Canary uses dynamic resolution — conf file is irrelevant, only hash the script
+          key: kernel-latest-${{ steps.latest.outputs.version }}-${{ hashFiles('test/prepare-kernel.sh') }}
+
+      - name: Prepare kernel headers
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash test/prepare-kernel.sh "${{ steps.latest.outputs.series }}" defconfig
+
+      - name: Build and verify
+        run: |
+          make -C src KDIR=/tmp/linux-build
+          file src/lime-*.ko | grep -q ELF
+
+  # ---------------------------------------------------------------------------
+  #  Tier 2 — Static analysis
+  #
+  #  Waits for build jobs so the 6.6-defconfig cache is guaranteed warm.
+  #  Same cache key → free cache hit, zero prep time.
+  # ---------------------------------------------------------------------------
+  analyze:
+    name: Static analysis
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libelf-dev libssl-dev dwarves sparse
+
+      - name: Resolve pinned version
+        id: pin
+        run: |
+          VER=$(grep "^6.6=" test/kernel-versions.conf | cut -d= -f2)
+          echo "version=${VER:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache kernel tree
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/linux-build
+          key: kernel-6.6-defconfig-${{ steps.pin.outputs.version }}-${{ hashFiles('test/prepare-kernel.sh') }}
+
+      - name: Prepare kernel headers
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash test/prepare-kernel.sh 6.6 defconfig
+
+      - name: Sparse check
+        run: |
+          make -C /tmp/linux-build M="$(pwd)/src" C=2 modules 2>&1 | \
+            tee /tmp/sparse.log
+          if grep -E '(error|warning):' /tmp/sparse.log | grep -q "$(pwd)/src/"; then
+            echo "::error::Sparse found issues in LiME source"
+            grep -E '(error|warning):' /tmp/sparse.log | grep "$(pwd)/src/"
+            exit 1
+          fi
+
+      - name: Source checks
+        run: bash test/check-source.sh
+
+  # ---------------------------------------------------------------------------
+  #  Tier 3 — Runtime smoke tests
+  #
+  #  Boots real kernels in QEMU with a minimal initramfs.  Uses separate
+  #  cache entries (kernel-qemu-*) since these include the full kernel image.
+  #
+  #  Depends on build to avoid wasting the expensive bzImage build when the
+  #  code has a fundamental compilation error.  Uses !cancelled() so that
+  #  an unrelated build failure (e.g., 4.15) doesn't block smoke-testing 6.6.
+  # ---------------------------------------------------------------------------
+  smoke-test:
+    name: "Smoke: Linux ${{ matrix.kernel }}"
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        kernel: ["5.15", "6.6"]
+    steps:
+      - uses: actions/checkout@v6
+
+      # CI runners are x86_64; local testing (test/local.sh) handles other arches.
+      - name: Install dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libelf-dev libssl-dev dwarves qemu-system-x86 busybox-static
+
+      - name: Resolve pinned version
+        id: pin
+        run: |
+          VER=$(grep "^${{ matrix.kernel }}=" test/kernel-versions.conf | cut -d= -f2)
+          echo "version=${VER:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache full kernel build
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/linux-build
+          key: kernel-qemu-${{ matrix.kernel }}-${{ steps.pin.outputs.version }}-${{ hashFiles('test/prepare-kernel.sh') }}
+
+      - name: Prepare and build kernel
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash test/prepare-kernel.sh "${{ matrix.kernel }}" qemu
+
+      - name: Build LiME module
+        run: make -C src KDIR=/tmp/linux-build
+
+      - name: Run smoke tests
+        run: bash test/qemu-smoke-test.sh /tmp/linux-build src/lime-*.ko

@@ -25,9 +25,6 @@
 
 #include "lime.h"
 
-extern int port;
-extern int localhostonly;
-
 static struct socket *control;
 static struct socket *accept;
 

@@ -30,9 +30,6 @@ static u8 *output;
 static int digestsize;
 static char *digest_value;
 
-extern char *digest;
-extern char *path;
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
 static struct crypto_ahash *tfm;
 static struct ahash_request *req;
@@ -135,7 +132,7 @@ int ldigest_update(void *v, size_t is) {
             if (ret < 0)
                 goto update_fail;
 
-            v += len;
+            v = (u8 *)v + len;
             nbytes -= len;
         }
     }
