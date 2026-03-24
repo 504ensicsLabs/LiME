@@ -112,9 +112,13 @@ scripts/config --enable CONFIG_CRYPTO_SHA256
 scripts/config --enable CONFIG_INET
 scripts/config --enable CONFIG_NET
 
-# Avoid host-tool build failures with newer GCC
+# Avoid host-tool build failures on modern toolchains
 scripts/config --disable CONFIG_STACK_VALIDATION
 scripts/config --disable CONFIG_GCC_PLUGINS
+# Module signing builds scripts/sign-file against the host OpenSSL.
+# Old kernels use OpenSSL 1.x APIs removed in OpenSSL 3.x (Ubuntu 24.04).
+scripts/config --disable CONFIG_MODULE_SIG
+scripts/config --disable CONFIG_SYSTEM_TRUSTED_KEYRING
 make -s olddefconfig
 
 ##
@@ -124,13 +128,19 @@ echo "==> modules_prepare ($(nproc) jobs)..."
 # Host tool compilation flags for modern GCC (14+) building old kernels:
 #   -Wno-error: suppress warnings promoted to errors
 #   -fcommon: allow duplicate globals in old dtc (GCC 10+ defaults to -fno-common)
-#   -Wno-error=implicit-function-declaration, etc.: GCC 14 made these hard errors
+#   GCC 14 made implicit-function-declaration et al. hard errors by default
 LIME_HOSTCFLAGS="-Wno-error -fcommon"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-function-declaration"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-int"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=incompatible-pointer-types"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=int-conversion"
-make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" modules_prepare 2>&1 | tail -3
+make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" modules_prepare 2>&1 | \
+    tee /tmp/modules_prepare.log | tail -5
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    echo "::error::modules_prepare failed — full output:"
+    grep -E '(error:|Error )' /tmp/modules_prepare.log || cat /tmp/modules_prepare.log
+    exit 1
+fi
 
 if [ "$CONFIG" = "qemu" ]; then
     # Each arch has a different kernel image target
@@ -142,7 +152,13 @@ if [ "$CONFIG" = "qemu" ]; then
         *)              KERNEL_TARGET=bzImage ;;
     esac
     echo "==> ${KERNEL_TARGET} ($(nproc) jobs — this takes a while on first run)..."
-    make -j"$(nproc)" "$KERNEL_TARGET" 2>&1 | tail -3
+    make -j"$(nproc)" "$KERNEL_TARGET" 2>&1 | \
+        tee /tmp/kernel_build.log | tail -5
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        echo "::error::kernel build failed — full output:"
+        grep -E '(error:|Error )' /tmp/kernel_build.log || cat /tmp/kernel_build.log
+        exit 1
+    fi
 fi
 
 ##
