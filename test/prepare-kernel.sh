@@ -112,52 +112,14 @@ scripts/config --enable CONFIG_CRYPTO_SHA256
 scripts/config --enable CONFIG_INET
 scripts/config --enable CONFIG_NET
 
-# Avoid host-tool build failures on modern toolchains.
-# These are harmless on newer kernels (configs may not exist or have
-# no effect), but critical for old kernels (4.x) where the host tools
-# don't compile against modern system headers / libraries.
 scripts/config --disable CONFIG_GCC_PLUGINS
-# ORC unwinder selects STACK_VALIDATION which builds objtool; old
-# objtool doesn't build on modern toolchains.  Must enable the
-# alternative (FRAME_POINTER) since UNWINDER_* is a Kconfig choice —
-# disabling the default without selecting another causes olddefconfig
-# to re-enable it.
-scripts/config --disable CONFIG_UNWINDER_ORC
-scripts/config --enable CONFIG_UNWINDER_FRAME_POINTER
-scripts/config --disable CONFIG_STACK_VALIDATION
-# sign-file/extract-cert link against OpenSSL (1.x APIs removed in 3.x)
-scripts/config --disable CONFIG_MODULE_SIG
-scripts/config --disable CONFIG_SYSTEM_TRUSTED_KEYRING
-# Old SELinux classmap.h doesn't know about AF_* families added in
-# newer kernel headers, causing a hard #error
-scripts/config --disable CONFIG_SECURITY_SELINUX
 make -s olddefconfig
 
 ##
 ## Build
 ##
 echo "==> modules_prepare ($(nproc) jobs)..."
-# Fix host tool compilation on modern GCC:
-#   -fcommon:    GCC 10+ defaults to -fno-common, causing "multiple
-#                definition of yylloc" linker errors in old DTC code
-#   -Wno-error*: GCC 14+ makes several warnings into hard errors
-#
-# In 5.x+ kernels KBUILD_HOSTCFLAGS appends $(HOSTCFLAGS) to its own
-# flags, so these are additive.  In 4.x HOSTCFLAGS is used directly
-# and our override replaces the original, but the code compiles fine
-# under the compiler's default standard with these flags.
-LIME_HOSTCFLAGS="-fcommon -Wno-error"
-LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-function-declaration"
-LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-int"
-LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=incompatible-pointer-types"
-LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=int-conversion"
-# CONFIG_STACK_VALIDATION= prevents objtool from building.  Old objtool
-# doesn't compile on modern toolchains and isn't needed for LiME.
-# Passing it as a Make variable override is more reliable than Kconfig
-# manipulation (choice defaults and select dependencies fight back).
-if ! make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" \
-     CONFIG_STACK_VALIDATION= modules_prepare \
-     > /tmp/modules_prepare.log 2>&1; then
+if ! make -j"$(nproc)" modules_prepare > /tmp/modules_prepare.log 2>&1; then
     echo "::error::modules_prepare failed:"
     cat /tmp/modules_prepare.log
     exit 1
