@@ -125,22 +125,27 @@ make -s olddefconfig
 ## Build
 ##
 echo "==> modules_prepare ($(nproc) jobs)..."
-# Host tool compilation flags for modern GCC (14+) building old kernels:
-#   -Wno-error: suppress warnings promoted to errors
-#   -fcommon: allow duplicate globals in old dtc (GCC 10+ defaults to -fno-common)
-#   GCC 14 made implicit-function-declaration et al. hard errors by default
-LIME_HOSTCFLAGS="-Wno-error -fcommon"
+# Fix host tool compilation on modern GCC:
+#   -fcommon:    GCC 10+ defaults to -fno-common, causing "multiple
+#                definition of yylloc" linker errors in old DTC code
+#   -Wno-error*: GCC 14+ makes several warnings into hard errors
+#
+# In 5.x+ kernels KBUILD_HOSTCFLAGS appends $(HOSTCFLAGS) to its own
+# flags, so these are additive.  In 4.x HOSTCFLAGS is used directly
+# and our override replaces the original, but the code compiles fine
+# under the compiler's default standard with these flags.
+LIME_HOSTCFLAGS="-fcommon -Wno-error"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-function-declaration"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=implicit-int"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=incompatible-pointer-types"
 LIME_HOSTCFLAGS="$LIME_HOSTCFLAGS -Wno-error=int-conversion"
-make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" modules_prepare 2>&1 | \
-    tee /tmp/modules_prepare.log | tail -5
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    echo "::error::modules_prepare failed — full output:"
-    grep -E '(error:|Error )' /tmp/modules_prepare.log || cat /tmp/modules_prepare.log
+if ! make -j"$(nproc)" HOSTCFLAGS="$LIME_HOSTCFLAGS" modules_prepare \
+     > /tmp/modules_prepare.log 2>&1; then
+    echo "::error::modules_prepare failed:"
+    cat /tmp/modules_prepare.log
     exit 1
 fi
+tail -5 /tmp/modules_prepare.log
 
 if [ "$CONFIG" = "qemu" ]; then
     # Each arch has a different kernel image target
@@ -152,13 +157,12 @@ if [ "$CONFIG" = "qemu" ]; then
         *)              KERNEL_TARGET=bzImage ;;
     esac
     echo "==> ${KERNEL_TARGET} ($(nproc) jobs — this takes a while on first run)..."
-    make -j"$(nproc)" "$KERNEL_TARGET" 2>&1 | \
-        tee /tmp/kernel_build.log | tail -5
-    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-        echo "::error::kernel build failed — full output:"
-        grep -E '(error:|Error )' /tmp/kernel_build.log || cat /tmp/kernel_build.log
+    if ! make -j"$(nproc)" "$KERNEL_TARGET" > /tmp/kernel_build.log 2>&1; then
+        echo "::error::kernel build failed:"
+        cat /tmp/kernel_build.log
         exit 1
     fi
+    tail -5 /tmp/kernel_build.log
 fi
 
 ##
