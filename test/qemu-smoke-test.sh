@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 # qemu-smoke-test.sh — Boot a kernel in QEMU and run LiME smoke tests.
 # Supports x86_64, aarch64, arm, and riscv64.
 #

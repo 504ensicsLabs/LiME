@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 # check-source.sh — Static source checks for LiME.
 # Catches common mistakes that compile testing alone misses.
 # Runs on both macOS (dev) and Linux (CI) — avoids grep -P.

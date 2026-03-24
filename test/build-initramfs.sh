@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 # build-initramfs.sh — Create a minimal initramfs for QEMU smoke testing.
 # Usage: ./test/build-initramfs.sh <lime.ko> <output.cpio.gz>
 

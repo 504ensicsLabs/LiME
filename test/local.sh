@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 # local.sh — Run LiME CI tests locally in Docker.
 #
 # This script self-dispatches: on the host it launches Docker, inside

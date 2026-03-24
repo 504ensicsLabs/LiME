@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 # prepare-kernel.sh - Download and prepare a kernel source tree for
 # out-of-tree module compilation testing.
 #

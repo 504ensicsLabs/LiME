@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 # smoke-init — Init script for LiME QEMU smoke tests.
 # Runs inside a minimal VM, exercises all output formats, digest,
 # and compression, then reports results via serial console.
