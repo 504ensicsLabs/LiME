@@ -1,10 +1,12 @@
 /*
  * LiME - Linux Memory Extractor
- * Copyright (c) 2011-2014 Joe Sylve - 504ENSICS Labs
- *
+ * Copyright (c) 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
  *
  * Author:
- * Joe Sylve       - joe.sylve@gmail.com, @jtsylve
+ * Joe T. Sylve, Ph.D.       - joe.sylve@gmail.com, @jtsylve
+ *
+ * SPDX-FileCopyrightText: 2011-2026 Joe T. Sylve, Ph.D. <joe.sylve@gmail.com>
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

@@ -13,3 +13,6 @@ modules.order
 *.cmd
 .tmp_versions/
 
+# Claude
+.claude
+CLAUDE.md
