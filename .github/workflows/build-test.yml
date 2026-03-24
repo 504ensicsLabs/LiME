@@ -33,7 +33,7 @@ jobs:
     name: >-
       Build: ${{ matrix.kernel }}
       ${{ matrix.config != 'defconfig' && format('[{0}]', matrix.config) || '' }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner || 'ubuntu-24.04' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -46,7 +46,10 @@ jobs:
           #   5.11 kmap_local_page           6.8   -Wmissing-prototypes
           #   6.12 PREEMPT_RT merged         6.19  sockaddr_unsized
           #
-          - { kernel: "4.15", config: defconfig,   builds: "default" }
+          # 4.15 needs ubuntu-22.04: its host tools (objtool, selinux/
+          # genheaders, dtc) don't build against Ubuntu 24.04's newer
+          # libelf, glibc headers, and GCC defaults.
+          - { kernel: "4.15", config: defconfig,   builds: "default", runner: "ubuntu-22.04" }
           - { kernel: "5.4",  config: defconfig,   builds: "default" }
           - { kernel: "5.10", config: defconfig,   builds: "default" }
           - { kernel: "5.15", config: defconfig,   builds: "default debug symbols werror" }
