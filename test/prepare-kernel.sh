@@ -118,8 +118,12 @@ scripts/config --enable CONFIG_NET
 # don't compile against modern system headers / libraries.
 scripts/config --disable CONFIG_GCC_PLUGINS
 # ORC unwinder selects STACK_VALIDATION which builds objtool; old
-# objtool uses deprecated libelf APIs (-Werror=deprecated-declarations)
+# objtool doesn't build on modern toolchains.  Must enable the
+# alternative (FRAME_POINTER) since UNWINDER_* is a Kconfig choice —
+# disabling the default without selecting another causes olddefconfig
+# to re-enable it.
 scripts/config --disable CONFIG_UNWINDER_ORC
+scripts/config --enable CONFIG_UNWINDER_FRAME_POINTER
 scripts/config --disable CONFIG_STACK_VALIDATION
 # sign-file/extract-cert link against OpenSSL (1.x APIs removed in 3.x)
 scripts/config --disable CONFIG_MODULE_SIG
